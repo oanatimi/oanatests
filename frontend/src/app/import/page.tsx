@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { importApi } from '@/lib/api';
 import { 
@@ -9,10 +9,15 @@ import {
   CheckCircle, 
   AlertCircle,
   Loader,
-  Terminal
+  Terminal,
+  X,
+  File
 } from 'lucide-react';
 
 export default function ImportPage() {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = useState<{
     success: boolean;
     filesProcessed: number;
@@ -22,15 +27,72 @@ export default function ImportPage() {
     logs: string[];
   } | null>(null);
 
-  const importMutation = useMutation({
-    mutationFn: () => importApi.importClients(),
+  const uploadMutation = useMutation({
+    mutationFn: (files: File[]) => importApi.uploadClients(files),
     onSuccess: (response) => {
       setImportResult(response.data);
+      setSelectedFiles([]);
     },
     onError: (error: Error) => {
       alert(`Import failed: ${error.message}`);
     },
   });
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+    );
+    
+    if (files.length > 0) {
+      setSelectedFiles(prev => [...prev, ...files]);
+    }
+  }, []);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const validFiles = Array.from(files).filter(file => 
+        file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+      );
+      setSelectedFiles(prev => [...prev, ...validFiles]);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  const removeFile = useCallback((index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleUpload = useCallback(() => {
+    if (selectedFiles.length > 0) {
+      uploadMutation.mutate(selectedFiles);
+    }
+  }, [selectedFiles, uploadMutation]);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
     <div className="space-y-6">
@@ -39,7 +101,7 @@ export default function ImportPage() {
         <p className="text-gray-600 mt-1">Import clients from Excel files</p>
       </div>
 
-      {/* Import Card */}
+      {/* File Upload Card */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="text-center">
           <FileSpreadsheet className="h-16 w-16 text-primary-600 mx-auto mb-4" />
@@ -47,16 +109,80 @@ export default function ImportPage() {
             Import Clients from Excel
           </h2>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            This will import client data from Excel files (.xlsx) located in the configured data directory.
+            Drag and drop Excel files or select them from your device.
             Duplicate clients will be automatically skipped.
           </p>
           
-          <button
-            onClick={() => importMutation.mutate()}
-            disabled={importMutation.isPending}
-            className="inline-flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+          {/* Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`
+              border-2 border-dashed rounded-lg p-8 cursor-pointer transition-colors
+              ${isDragging 
+                ? 'border-primary-500 bg-primary-50' 
+                : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}
+            `}
           >
-            {importMutation.isPending ? (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <Upload className={`h-10 w-10 mx-auto mb-3 ${isDragging ? 'text-primary-500' : 'text-gray-400'}`} />
+            <p className="text-gray-600 mb-1">
+              <span className="font-semibold text-primary-600">Click to upload</span> or drag and drop
+            </p>
+            <p className="text-sm text-gray-500">Excel files (.xlsx, .xls) up to 50MB each</p>
+          </div>
+
+          {/* Selected Files List */}
+          {selectedFiles.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-3 text-left">
+                Selected Files ({selectedFiles.length})
+              </h3>
+              <div className="space-y-2">
+                {selectedFiles.map((file, index) => (
+                  <div 
+                    key={`${file.name}-${index}`} 
+                    className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center min-w-0">
+                      <File className="h-5 w-5 text-primary-600 mr-3 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                        <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                      className="ml-4 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                      aria-label="Remove file"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <button
+            onClick={handleUpload}
+            disabled={selectedFiles.length === 0 || uploadMutation.isPending}
+            className="mt-6 inline-flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {uploadMutation.isPending ? (
               <>
                 <Loader className="h-5 w-5 mr-2 animate-spin" />
                 Importing...
@@ -64,7 +190,7 @@ export default function ImportPage() {
             ) : (
               <>
                 <Upload className="h-5 w-5 mr-2" />
-                Start Import
+                Import {selectedFiles.length > 0 ? `${selectedFiles.length} File${selectedFiles.length > 1 ? 's' : ''}` : 'Files'}
               </>
             )}
           </button>
@@ -140,7 +266,7 @@ export default function ImportPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Supported File Formats</h2>
         <div className="space-y-4 text-gray-600">
           <p>
-            The import process supports Excel files (.xlsx) with the following columns:
+            The import process supports Excel files (.xlsx, .xls) with the following columns:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

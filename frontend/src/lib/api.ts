@@ -170,4 +170,16 @@ export const messagesApi = {
 export const importApi = {
   importClients: (directory?: string) =>
     api.post('/import/clients', { directory }),
+  
+  uploadClients: (files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    return api.post('/import/clients/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
