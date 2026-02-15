@@ -210,17 +210,21 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 
 ## 🚂 Railway Deployment
 
-### One-Click Deploy
+This repository includes Railway configuration files at the root for automatic deployment.
+
+### Automatic Deploy (Recommended)
 
 1. Create a new project on [Railway](https://railway.app)
 2. Add a PostgreSQL database
 3. Connect your GitHub repository
-4. **Set the root directory to `/backend`** in the service settings
+4. Railway will automatically detect the `railway.json` and `Dockerfile` at the root
 5. Add the following environment variables:
    - All backend environment variables listed above
    - `DATABASE_URL` (automatically provided by Railway PostgreSQL)
 
-### Manual Setup
+The root-level `railway.json` and `Dockerfile` are configured to build and deploy the backend service from the monorepo structure.
+
+### Manual Setup (Alternative)
 
 1. **Create a Railway project**
    ```bash
@@ -233,13 +237,12 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
    # Select PostgreSQL
    ```
 
-3. **Set root directory**
-   - In the Railway dashboard, set the service root directory to `/backend`
-
-4. **Deploy**
+3. **Deploy**
    ```bash
    railway up
    ```
+
+**Note:** You can also deploy by setting the root directory to `/backend` in Railway dashboard settings and using the backend-specific configuration files, but the root-level configuration is recommended for automatic deployments.
 
 ## 📱 Traccar SMS Gateway Setup
 
