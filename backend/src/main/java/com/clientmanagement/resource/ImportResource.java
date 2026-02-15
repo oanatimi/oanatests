@@ -140,7 +140,7 @@ public class ImportResource {
             if (files == null || files.isEmpty()) {
                 LOG.warn("No files provided in upload request");
                 return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ApiResponse.error("No files were uploaded. Please select at least one Excel file (.xlsx)."))
+                    .entity(ApiResponse.error("No files were uploaded. Please select at least one Excel file (.xlsx or .xls)."))
                     .build();
             }
 
