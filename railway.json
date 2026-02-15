@@ -33,10 +33,6 @@
         "description": "PostgreSQL password (auto-linked from Railway Postgres)",
         "default": "${{Postgres.PGPASSWORD}}"
       },
-      "NODE_ENV": {
-        "description": "Node environment",
-        "default": "production"
-      },
       "CORS_ORIGIN": {
         "description": "Frontend URL(s) for CORS. Supports comma-separated values for multiple origins (e.g., https://frontend1.railway.app,https://frontend2.railway.app)",
         "required": true
@@ -101,8 +97,12 @@
         "default": "+40"
       },
       "LOG_LEVEL": {
-        "description": "Log level",
-        "default": "info"
+        "description": "Log level (DEBUG, INFO, WARN, ERROR)",
+        "default": "INFO"
+      },
+      "JAVA_OPTS": {
+        "description": "JVM options",
+        "default": "-Xms256m -Xmx512m"
       }
     }
   }

@@ -56,7 +56,6 @@ DB_PASSWORD=${{Postgres.PGPASSWORD}}
 
 # Server Configuration
 # NOTE: Do NOT set PORT here — Railway assigns it dynamically
-NODE_ENV=production
 
 # CORS - SET THIS TO YOUR FRONTEND URL (see Step 4 for frontend URL)
 CORS_ORIGIN=https://your-frontend-url.railway.app
@@ -83,7 +82,10 @@ SMS_SENDER_NAME=YourCompany
 SMS_DEFAULT_COUNTRY_CODE=+40
 
 # Logging
-LOG_LEVEL=info
+LOG_LEVEL=INFO
+
+# JVM Options (optional)
+JAVA_OPTS=-Xms256m -Xmx512m
 ```
 
 5. Click **"Update Variables"**
@@ -201,9 +203,9 @@ Now that you have your frontend URL, you need to update the backend CORS configu
 **Solution:**
 1. **Do NOT hardcode PORT** — Railway assigns it dynamically via the `PORT` env var
 2. **Bind to `0.0.0.0`** — not `localhost` or `127.0.0.1`
-   - Backend: `app.listen(PORT, '0.0.0.0', ...)` (already configured)
+   - Backend: Quarkus is configured with `quarkus.http.host=0.0.0.0` (already configured)
    - Frontend: `HOSTNAME=0.0.0.0` env var is set in the Dockerfile
-3. **Do NOT set `PORT=3001`** in Railway variables — let Railway assign it
+3. **Do NOT set `PORT`** in Railway variables — let Railway assign it
 
 ## 📝 Environment Variables Reference
 
@@ -227,12 +229,12 @@ Now that you have your frontend URL, you need to update the backend CORS configu
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3001` | Server port |
-| `NODE_ENV` | `production` | Node environment |
+| `PORT` | `8080` | Server port (assigned by Railway) |
 | `SMS_RATE_LIMIT_PER_MINUTE` | `30` | Max SMS per minute |
 | `SMS_RATE_LIMIT_PER_HOUR` | `500` | Max SMS per hour |
 | `SMS_SENDER_NAME` | `YourCompany` | Company name in SMS |
-| `LOG_LEVEL` | `info` | Logging level |
+| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARN, ERROR) |
+| `JAVA_OPTS` | `-Xms256m -Xmx512m` | JVM options |
 
 ## 🔄 Updating Environment Variables
 
