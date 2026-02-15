@@ -1,8 +1,9 @@
 import ExcelJS from 'exceljs';
 import path from 'path';
 import { logger } from '../utils/logger';
-import prisma from '../config/database';
+import { query, queryOne, execute } from '../config/database';
 import { config } from '../config';
+import { Client } from '../types/database';
 
 interface ClientData {
   companyName: string;
@@ -356,24 +357,39 @@ export async function importClientsFromExcel(filePaths: string[]): Promise<{
       
       for (const clientData of clients) {
         try {
-          // Check for duplicates based on company name and primary phone
-          const existingClient = await prisma.client.findFirst({
-            where: {
-              OR: [
-                { companyName: clientData.companyName, phonePrimary: clientData.phonePrimary },
-                ...(clientData.cui != null ? [{ cui: clientData.cui }] : []),
-              ],
-            },
-          });
+          // Check for duplicates based on company name and primary phone, or CUI
+          let existingClient: Client | null = null;
+          
+          if (clientData.phonePrimary) {
+            existingClient = await queryOne<Client>(
+              'SELECT * FROM "Client" WHERE "companyName" = $1 AND "phonePrimary" = $2 LIMIT 1',
+              [clientData.companyName, clientData.phonePrimary]
+            );
+          }
+          
+          if (!existingClient && clientData.cui) {
+            existingClient = await queryOne<Client>(
+              'SELECT * FROM "Client" WHERE cui = $1 LIMIT 1',
+              [clientData.cui]
+            );
+          }
           
           if (existingClient) {
             skipped++;
             continue;
           }
           
-          await prisma.client.create({
-            data: clientData,
-          });
+          // Build INSERT query dynamically
+          const fields = Object.keys(clientData) as (keyof ClientData)[];
+          const columns = fields.map(f => `"${f}"`).join(', ');
+          const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
+          const values = fields.map(f => clientData[f]);
+          
+          await execute(
+            `INSERT INTO "Client" (id, ${columns}, "importedAt", "createdAt", "updatedAt")
+             VALUES (gen_random_uuid(), ${placeholders}, NOW(), NOW(), NOW())`,
+            values
+          );
           imported++;
         } catch (err) {
           const errorMsg = `Error importing client ${clientData.companyName}: ${err instanceof Error ? err.message : String(err)}`;

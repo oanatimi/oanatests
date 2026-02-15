@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { Prisma, MessageStatus } from '@prisma/client';
-import prisma from '../config/database';
+import { query, queryOne, execute } from '../config/database';
+import { MessageStatus, Message, MessageTemplate, MessageWithClient, Client } from '../types/database';
 import { messageQueueService } from '../services/messageQueueService';
 import { smsService } from '../services/smsService';
 import { config } from '../config';
@@ -30,34 +30,63 @@ router.get('/', async (req: Request, res: Response) => {
     const status = req.query.status as MessageStatus;
     const clientId = req.query.clientId as string;
     
-    const where: Prisma.MessageWhereInput = {};
+    const offset = (page - 1) * limit;
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
     
     if (status) {
-      where.status = status;
+      conditions.push(`m.status = $${paramIndex}`);
+      params.push(status);
+      paramIndex++;
     }
     
     if (clientId) {
-      where.clientId = clientId;
+      conditions.push(`m."clientId" = $${paramIndex}`);
+      params.push(clientId);
+      paramIndex++;
     }
     
-    const [messages, total] = await Promise.all([
-      prisma.message.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          client: {
-            select: {
-              id: true,
-              companyName: true,
-              phonePrimary: true,
-            },
-          },
-        },
-      }),
-      prisma.message.count({ where }),
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    
+    const messagesQuery = `
+      SELECT m.*, 
+        c.id as "client_id", c."companyName" as "client_companyName", c."phonePrimary" as "client_phonePrimary"
+      FROM "Message" m
+      LEFT JOIN "Client" c ON m."clientId" = c.id
+      ${whereClause}
+      ORDER BY m."createdAt" DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    
+    const countQuery = `SELECT COUNT(*) as total FROM "Message" m ${whereClause}`;
+    
+    const [messagesRaw, countResult] = await Promise.all([
+      query<Message & { client_id: string; client_companyName: string; client_phonePrimary: string | null }>(messagesQuery, [...params, limit, offset]),
+      query<{ total: string }>(countQuery, params),
     ]);
+    
+    // Transform to include client object
+    const messages: MessageWithClient[] = messagesRaw.map(m => ({
+      id: m.id,
+      clientId: m.clientId,
+      phoneNumber: m.phoneNumber,
+      content: m.content,
+      status: m.status,
+      sentAt: m.sentAt,
+      deliveredAt: m.deliveredAt,
+      errorMessage: m.errorMessage,
+      retryCount: m.retryCount,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      client: m.client_id ? {
+        id: m.client_id,
+        companyName: m.client_companyName,
+        phonePrimary: m.client_phonePrimary,
+      } : undefined,
+    }));
+    
+    const total = parseInt(countResult[0]?.total || '0', 10);
     
     res.json({
       success: true,
@@ -98,10 +127,10 @@ router.post('/send', async (req: Request, res: Response) => {
     // Get client phone if not provided
     let phone = phoneNumber;
     if (!phone) {
-      const client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: { phonePrimary: true, phoneContact: true, companyName: true },
-      });
+      const client = await queryOne<Client>(
+        'SELECT "phonePrimary", "phoneContact", "companyName" FROM "Client" WHERE id = $1',
+        [clientId]
+      );
       
       if (!client) {
         sendNotFoundError(res, 'Client');
@@ -161,17 +190,11 @@ router.post('/bulk', async (req: Request, res: Response) => {
     }
     
     // Get clients with phone numbers
-    const clients = await prisma.client.findMany({
-      where: {
-        id: { in: clientIds },
-      },
-      select: {
-        id: true,
-        phonePrimary: true,
-        phoneContact: true,
-        companyName: true,
-      },
-    });
+    const placeholders = clientIds.map((_, i) => `$${i + 1}`).join(', ');
+    const clients = await query<Client>(
+      `SELECT id, "phonePrimary", "phoneContact", "companyName" FROM "Client" WHERE id IN (${placeholders})`,
+      clientIds
+    );
     
     const messages = clients
       .filter(c => c.phonePrimary || c.phoneContact)
@@ -239,9 +262,9 @@ router.post('/queue/retry-dead-letters', async (_req: Request, res: Response) =>
 // Get message templates
 router.get('/templates', async (_req: Request, res: Response) => {
   try {
-    const templates = await prisma.messageTemplate.findMany({
-      orderBy: { name: 'asc' },
-    });
+    const templates = await query<MessageTemplate>(
+      'SELECT * FROM "MessageTemplate" ORDER BY name ASC'
+    );
     
     res.json({ success: true, data: templates });
   } catch (error) {
@@ -259,9 +282,12 @@ router.post('/templates', async (req: Request, res: Response) => {
       return;
     }
     
-    const template = await prisma.messageTemplate.create({
-      data: { name, content },
-    });
+    const template = await queryOne<MessageTemplate>(
+      `INSERT INTO "MessageTemplate" (id, name, content, "createdAt", "updatedAt") 
+       VALUES (gen_random_uuid(), $1, $2, NOW(), NOW()) 
+       RETURNING *`,
+      [name, content]
+    );
     
     res.json({
       success: true,
@@ -278,10 +304,15 @@ router.put('/templates/:id', async (req: Request, res: Response) => {
   try {
     const { name, content } = req.body;
     
-    const template = await prisma.messageTemplate.update({
-      where: { id: req.params.id },
-      data: { name, content },
-    });
+    const template = await queryOne<MessageTemplate>(
+      `UPDATE "MessageTemplate" SET name = $1, content = $2, "updatedAt" = NOW() WHERE id = $3 RETURNING *`,
+      [name, content, req.params.id]
+    );
+    
+    if (!template) {
+      sendNotFoundError(res, 'Template');
+      return;
+    }
     
     res.json({
       success: true,
@@ -296,9 +327,15 @@ router.put('/templates/:id', async (req: Request, res: Response) => {
 // Delete message template
 router.delete('/templates/:id', async (req: Request, res: Response) => {
   try {
-    await prisma.messageTemplate.delete({
-      where: { id: req.params.id },
-    });
+    const result = await execute(
+      'DELETE FROM "MessageTemplate" WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (result.rowCount === 0) {
+      sendNotFoundError(res, 'Template');
+      return;
+    }
     
     res.json({
       success: true,

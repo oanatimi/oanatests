@@ -5,15 +5,9 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY prisma ./prisma/
 
 # Install dependencies
 RUN npm ci
-
-# Generate Prisma client with dummy DATABASE_URL for build time
-# The actual DATABASE_URL will be provided at runtime by Railway
-ENV DATABASE_URL="postgresql://dummy:dummy@dummy:5432/dummy?schema=public"
-RUN npx prisma generate
 
 # Copy source code
 COPY . .
@@ -28,18 +22,15 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY prisma ./prisma/
 
 # Install production dependencies only
 RUN npm ci --omit=dev
 
-# Generate Prisma client with dummy DATABASE_URL for build time
-# The actual DATABASE_URL will be provided at runtime by Railway
-ENV DATABASE_URL="postgresql://dummy:dummy@dummy:5432/dummy?schema=public"
-RUN npx prisma generate
-
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
+
+# Copy database migration script
+COPY --from=builder /app/db ./db
 
 # Expose port
 EXPOSE 3001
