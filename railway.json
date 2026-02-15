@@ -11,8 +11,8 @@
     "restartPolicyMaxRetries": 10,
     "envVars": {
       "DATABASE_URL": {
-        "description": "PostgreSQL connection string (provided by Railway)",
-        "required": true
+        "description": "PostgreSQL connection string (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.DATABASE_URL}}"
       },
       "PORT": {
         "description": "Server port",
