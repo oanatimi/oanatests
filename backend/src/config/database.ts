@@ -63,4 +63,89 @@ export async function closePool(): Promise<void> {
   logger.info('Database pool closed');
 }
 
+// Required tables for the application
+const REQUIRED_TABLES = [
+  'Client',
+  'Message', 
+  'MessageQueue',
+  'MessageTemplate',
+  'OptOut',
+  'SystemConfig'
+];
+
+// Database schema constants
+const DB_SCHEMA = 'public';
+const TABLE_TYPE = 'BASE TABLE';
+
+// Database health check result interface
+export interface DatabaseHealthResult {
+  connected: boolean;
+  tablesExist: boolean;
+  existingTables: string[];
+  missingTables: string[];
+  error?: string;
+}
+
+// Check database connectivity and verify all required tables exist
+export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
+  const result: DatabaseHealthResult = {
+    connected: false,
+    tablesExist: false,
+    existingTables: [],
+    missingTables: [],
+  };
+
+  try {
+    // Test basic connectivity
+    const connectivityTest = await pool.query('SELECT NOW() as current_time');
+    result.connected = true;
+    logger.info(`Database connection successful. Server time: ${connectivityTest.rows[0].current_time}`);
+
+    // Query for existing tables in the schema
+    const tablesQuery = await pool.query(
+      `SELECT table_name 
+       FROM information_schema.tables 
+       WHERE table_schema = $1 
+       AND table_type = $2
+       ORDER BY table_name`,
+      [DB_SCHEMA, TABLE_TYPE]
+    );
+
+    const existingTableNames = tablesQuery.rows.map(row => row.table_name);
+    result.existingTables = existingTableNames;
+
+    // Use Set for O(1) lookups when checking required tables
+    const existingTablesSet = new Set(existingTableNames);
+
+    // Check for required tables
+    for (const requiredTable of REQUIRED_TABLES) {
+      if (existingTablesSet.has(requiredTable)) {
+        logger.info(`✓ Table "${requiredTable}" exists`);
+      } else {
+        result.missingTables.push(requiredTable);
+        logger.warn(`✗ Table "${requiredTable}" is MISSING`);
+      }
+    }
+
+    result.tablesExist = result.missingTables.length === 0;
+
+    if (result.tablesExist) {
+      logger.info(`All ${REQUIRED_TABLES.length} required tables are present`);
+    } else {
+      logger.warn(`Missing ${result.missingTables.length} required tables: ${result.missingTables.join(', ')}`);
+      logger.warn('Run database migrations with: npm run db:migrate');
+    }
+
+    // Log all tables found for debugging
+    logger.info(`Database tables found: ${existingTableNames.length > 0 ? existingTableNames.join(', ') : 'none'}`);
+
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    result.error = errorMessage;
+    logger.error(`Database health check failed: ${errorMessage}`);
+    return result;
+  }
+}
+
 export default pool;

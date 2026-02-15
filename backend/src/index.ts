@@ -5,10 +5,14 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { messageQueueService } from './services/messageQueueService';
+import { checkDatabaseHealth, DatabaseHealthResult } from './config/database';
 
 import clientRoutes from './routes/clients';
 import messageRoutes from './routes/messages';
 import importRoutes from './routes/import';
+
+// Store database health status for health endpoint
+let databaseHealth: DatabaseHealthResult | null = null;
 
 const app = express();
 
@@ -33,9 +37,17 @@ app.use('/api/', apiLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Health check with database status
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    database: databaseHealth ? {
+      connected: databaseHealth.connected,
+      tablesExist: databaseHealth.tablesExist,
+      missingTables: databaseHealth.missingTables,
+    } : { status: 'not_checked' }
+  });
 });
 
 // API routes
@@ -52,12 +64,39 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // Start server
 const PORT = config.port;
 
+// Async initialization function to handle database health check and start services
+async function initializeServices(): Promise<void> {
+  try {
+    // Check database health before starting dependent services
+    logger.info('Checking database health...');
+    databaseHealth = await checkDatabaseHealth();
+    
+    if (databaseHealth.connected) {
+      if (databaseHealth.tablesExist) {
+        // All tables exist - start message queue processor
+        logger.info('Database ready - starting message queue processor');
+        messageQueueService.start();
+      } else {
+        // Tables missing - warn but don't crash
+        logger.warn('Database tables missing - message queue processor will NOT start');
+        logger.warn('Please run migrations: npm run db:migrate');
+      }
+    } else {
+      logger.error('Database connection failed - message queue processor will NOT start');
+      logger.error(`Error: ${databaseHealth.error}`);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Service initialization failed: ${errorMessage}`);
+  }
+}
+
 const server = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${config.nodeEnv}`);
   
-  // Start message queue processor
-  messageQueueService.start();
+  // Initialize services asynchronously with proper error handling
+  initializeServices();
 });
 
 // Graceful shutdown
