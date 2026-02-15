@@ -39,5 +39,6 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# Start command
-CMD ["npm", "start"]
+# Start command - run migrations first, then start the server
+# Migrations are idempotent (uses IF NOT EXISTS) so safe to run every time
+CMD ["sh", "-c", "npm run db:migrate && npm start"]
