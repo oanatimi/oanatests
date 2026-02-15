@@ -8,7 +8,7 @@ WORKDIR /app
 COPY backend/pom.xml .
 
 # Download dependencies (cached layer)
-RUN mvn -q -DskipTests dependency:go-offline
+RUN mvn -B -DskipTests dependency:go-offline
 
 # Copy backend source code
 COPY backend/src ./src
@@ -28,4 +28,5 @@ COPY --from=build /app/target/quarkus-app/ /work/
 EXPOSE 8080
 
 # Start the application
-ENTRYPOINT ["java","-jar","/work/quarkus-run.jar"]
+# Uses JAVA_OPTS environment variable for JVM configuration
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /work/quarkus-run.jar"]
