@@ -1,7 +1,7 @@
-import prisma from '../config/database';
+import { query, queryOne, execute } from '../config/database';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { MessageStatus } from '@prisma/client';
+import { MessageStatus, OptOut, Message } from '../types/database';
 
 export interface ValidationResult {
   valid: boolean;
@@ -119,9 +119,10 @@ export class SmsValidationService {
    * Check if recipient has opted out
    */
   async isOptedOut(phoneNumber: string): Promise<boolean> {
-    const optOut = await prisma.optOut.findUnique({
-      where: { phoneNumber },
-    });
+    const optOut = await queryOne<OptOut>(
+      'SELECT * FROM "OptOut" WHERE "phoneNumber" = $1',
+      [phoneNumber]
+    );
     return !!optOut;
   }
 
@@ -132,13 +133,15 @@ export class SmsValidationService {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const count = await prisma.message.count({
-      where: {
-        phoneNumber,
-        createdAt: { gte: todayStart },
-        status: { in: [MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.QUEUED, MessageStatus.SENDING] },
-      },
-    });
+    const result = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM "Message" 
+       WHERE "phoneNumber" = $1 
+       AND "createdAt" >= $2 
+       AND status IN ($3, $4, $5, $6)`,
+      [phoneNumber, todayStart, MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.QUEUED, MessageStatus.SENDING]
+    );
+    
+    const count = parseInt(result?.count || '0', 10);
 
     if (count >= config.smsBestPractices.maxPerRecipientPerDay) {
       return {
@@ -157,13 +160,15 @@ export class SmsValidationService {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 7);
 
-    const count = await prisma.message.count({
-      where: {
-        phoneNumber,
-        createdAt: { gte: weekStart },
-        status: { in: [MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.QUEUED, MessageStatus.SENDING] },
-      },
-    });
+    const result = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM "Message" 
+       WHERE "phoneNumber" = $1 
+       AND "createdAt" >= $2 
+       AND status IN ($3, $4, $5, $6)`,
+      [phoneNumber, weekStart, MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.QUEUED, MessageStatus.SENDING]
+    );
+    
+    const count = parseInt(result?.count || '0', 10);
 
     if (count >= config.smsBestPractices.maxPerRecipientPerWeek) {
       return {
@@ -184,14 +189,15 @@ export class SmsValidationService {
       cooldownTime.getHours() - config.smsBestPractices.recipientCooldownHours
     );
 
-    const recentMessage = await prisma.message.findFirst({
-      where: {
-        phoneNumber,
-        createdAt: { gte: cooldownTime },
-        status: { in: [MessageStatus.SENT, MessageStatus.DELIVERED] },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const recentMessage = await queryOne<Message>(
+      `SELECT * FROM "Message" 
+       WHERE "phoneNumber" = $1 
+       AND "createdAt" >= $2 
+       AND status IN ($3, $4)
+       ORDER BY "createdAt" DESC 
+       LIMIT 1`,
+      [phoneNumber, cooldownTime, MessageStatus.SENT, MessageStatus.DELIVERED]
+    );
 
     if (recentMessage) {
       const nextAllowed = new Date(recentMessage.createdAt);
@@ -224,13 +230,14 @@ export class SmsValidationService {
       windowStart.getHours() - config.smsBestPractices.duplicateWindowHours
     );
 
-    const duplicate = await prisma.message.findFirst({
-      where: {
-        phoneNumber,
-        content,
-        createdAt: { gte: windowStart },
-      },
-    });
+    const duplicate = await queryOne<Message>(
+      `SELECT * FROM "Message" 
+       WHERE "phoneNumber" = $1 
+       AND content = $2 
+       AND "createdAt" >= $3 
+       LIMIT 1`,
+      [phoneNumber, content, windowStart]
+    );
 
     if (duplicate) {
       return {
@@ -351,11 +358,12 @@ export class SmsValidationService {
    * Record opt-out for a phone number
    */
   async recordOptOut(phoneNumber: string): Promise<void> {
-    await prisma.optOut.upsert({
-      where: { phoneNumber },
-      create: { phoneNumber },
-      update: { updatedAt: new Date() },
-    });
+    await execute(
+      `INSERT INTO "OptOut" (id, "phoneNumber", "createdAt", "updatedAt") 
+       VALUES (gen_random_uuid(), $1, NOW(), NOW())
+       ON CONFLICT ("phoneNumber") DO UPDATE SET "updatedAt" = NOW()`,
+      [phoneNumber]
+    );
     logger.info(`Opt-out recorded for ${phoneNumber}`);
   }
 
@@ -363,11 +371,11 @@ export class SmsValidationService {
    * Remove opt-out for a phone number
    */
   async removeOptOut(phoneNumber: string): Promise<void> {
-    await prisma.optOut.delete({
-      where: { phoneNumber },
-    }).catch(() => {
+    try {
+      await execute('DELETE FROM "OptOut" WHERE "phoneNumber" = $1', [phoneNumber]);
+    } catch {
       // Ignore if doesn't exist
-    });
+    }
     logger.info(`Opt-out removed for ${phoneNumber}`);
   }
 }

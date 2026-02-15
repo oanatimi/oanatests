@@ -7,9 +7,7 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
+    "db:migrate": "node db/migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -17,7 +15,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@prisma/client": "^5.22.0",
     "axios": "^1.13.5",
     "bottleneck": "^2.19.5",
     "cors": "^2.8.5",
@@ -27,7 +24,6 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "pg": "^8.11.3",
-    "prisma": "^5.22.0",
     "typescript": "^5.3.3",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"

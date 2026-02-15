@@ -2,12 +2,17 @@ import { Response } from 'express';
 import { logger } from './logger';
 
 // User-friendly error messages mapping
+// PostgreSQL error codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
 const ERROR_MESSAGES: Record<string, string> = {
-  // Database errors
-  'P2002': 'This record already exists. Please check for duplicates.',
-  'P2025': 'The requested record was not found.',
-  'P2003': 'Cannot complete this action because it references data that doesn\'t exist.',
-  'P2014': 'This action would violate a required relationship.',
+  // PostgreSQL error codes
+  '23505': 'This record already exists. Please check for duplicates.', // unique_violation
+  '23503': 'Cannot complete this action because it references data that doesn\'t exist.', // foreign_key_violation
+  '23502': 'Some required information is missing.', // not_null_violation
+  '22P02': 'The data format is incorrect.', // invalid_text_representation
+  
+  // Application error codes
+  'NOT_FOUND': 'The requested record was not found.',
+  'DUPLICATE': 'This record already exists. Please check for duplicates.',
   
   // Validation errors
   'VALIDATION_ERROR': 'Please check your input and try again.',
@@ -49,20 +54,20 @@ export interface ErrorResponse {
  */
 export function getUserFriendlyMessage(error: unknown): string {
   if (error instanceof Error) {
-    // Check for Prisma error codes
-    const prismaError = error as { code?: string };
-    if (prismaError.code && ERROR_MESSAGES[prismaError.code]) {
-      return ERROR_MESSAGES[prismaError.code];
+    // Check for PostgreSQL error codes
+    const pgError = error as { code?: string };
+    if (pgError.code && ERROR_MESSAGES[pgError.code]) {
+      return ERROR_MESSAGES[pgError.code];
     }
     
     // Check for specific error patterns
     const message = error.message.toLowerCase();
     
-    if (message.includes('duplicate') || message.includes('unique constraint')) {
-      return ERROR_MESSAGES['P2002'];
+    if (message.includes('duplicate') || message.includes('unique constraint') || message.includes('unique_violation')) {
+      return ERROR_MESSAGES['23505'];
     }
     if (message.includes('not found')) {
-      return ERROR_MESSAGES['P2025'];
+      return ERROR_MESSAGES['NOT_FOUND'];
     }
     if (message.includes('rate limit')) {
       return ERROR_MESSAGES['SMS_RATE_LIMIT'];
@@ -122,19 +127,25 @@ export function handleError(
   let userMessage = getUserFriendlyMessage(error);
   
   if (error instanceof Error) {
-    const prismaError = error as { code?: string };
+    const pgError = error as { code?: string };
     
-    // Prisma "not found" errors
-    if (prismaError.code === 'P2025') {
-      statusCode = 404;
-      errorCode = 'NOT_FOUND';
-      userMessage = ERROR_MESSAGES['P2025'];
-    }
-    // Prisma "duplicate" errors
-    else if (prismaError.code === 'P2002') {
+    // PostgreSQL "unique_violation" errors
+    if (pgError.code === '23505') {
       statusCode = 409;
       errorCode = 'DUPLICATE';
-      userMessage = ERROR_MESSAGES['P2002'];
+      userMessage = ERROR_MESSAGES['23505'];
+    }
+    // PostgreSQL "foreign_key_violation" errors (referencing non-existent data)
+    else if (pgError.code === '23503') {
+      statusCode = 400;
+      errorCode = 'INVALID_REFERENCE';
+      userMessage = ERROR_MESSAGES['23503'];
+    }
+    // PostgreSQL "not_null_violation" errors
+    else if (pgError.code === '23502') {
+      statusCode = 400;
+      errorCode = 'VALIDATION_ERROR';
+      userMessage = ERROR_MESSAGES['23502'];
     }
     // Validation errors
     else if (errorMessage.toLowerCase().includes('validation') || 
@@ -142,6 +153,12 @@ export function handleError(
              errorMessage.toLowerCase().includes('required')) {
       statusCode = 400;
       errorCode = 'VALIDATION_ERROR';
+    }
+    // Not found patterns
+    else if (errorMessage.toLowerCase().includes('not found')) {
+      statusCode = 404;
+      errorCode = 'NOT_FOUND';
+      userMessage = ERROR_MESSAGES['NOT_FOUND'];
     }
   }
   

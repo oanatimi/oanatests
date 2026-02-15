@@ -105,8 +105,7 @@ A full-stack application for managing clients and sending SMS messages via Tracc
    cp .env.example .env
    # Edit .env with your configuration
    npm install
-   npx prisma generate
-   npx prisma migrate dev
+   npm run db:migrate  # Run database migrations
    npm run dev
    ```
 
@@ -265,45 +264,49 @@ The root-level `railway.json` and `Dockerfile` are configured to build and deplo
 
 ## 📊 Database Schema
 
-```prisma
-model Client {
-  id                String    @id @default(uuid())
-  companyName       String
-  status            String?
-  cui               String?
-  county            String?
-  phonePrimary      String?
-  emailPrimary      String?
-  administrator     String?
-  messages          Message[]
-  // ... more fields
-}
+The application uses PostgreSQL with raw SQL queries. Schema is defined in `backend/db/schema.sql`.
 
-model Message {
-  id          String        @id @default(uuid())
-  clientId    String
-  phoneNumber String
-  content     String
-  status      MessageStatus
-  sentAt      DateTime?
-  retryCount  Int
-  client      Client        @relation(...)
-}
+```sql
+-- Main tables:
+-- Client: Company information and contact details
+-- Message: SMS messages sent to clients
+-- MessageQueue: Queue system for message delivery
+-- MessageTemplate: Reusable message templates
+-- OptOut: Phone numbers that have opted out
+-- SystemConfig: Application configuration
 
-model MessageQueue {
-  id          String      @id @default(uuid())
-  messageId   String      @unique
-  status      QueueStatus
-  attempts    Int
-  nextRetry   DateTime
-  // ... more fields
-}
+-- Example table structure:
+CREATE TABLE "Client" (
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "companyName" TEXT NOT NULL,
+    "status" TEXT,
+    "cui" TEXT,
+    "county" TEXT,
+    "phonePrimary" TEXT,
+    "emailPrimary" TEXT,
+    "administrator" TEXT,
+    -- ... more fields
+    "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP
+);
 
-model OptOut {
-  id          String   @id @default(uuid())
-  phoneNumber String   @unique
-  createdAt   DateTime
-}
+CREATE TABLE "Message" (
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "clientId" TEXT NOT NULL REFERENCES "Client"("id") ON DELETE CASCADE,
+    "phoneNumber" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "status" "MessageStatus" DEFAULT 'PENDING',
+    "sentAt" TIMESTAMP(3),
+    "retryCount" INTEGER DEFAULT 0,
+    "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Running Migrations
+
+```bash
+cd backend
+npm run db:migrate
 ```
 
 ## 🔒 SMS Best Practices
@@ -333,8 +336,11 @@ To avoid getting banned by SMS providers:
 │   │   │   ├── smsService.ts
 │   │   │   ├── messageQueueService.ts
 │   │   │   └── smsValidationService.ts
+│   │   ├── types/          # TypeScript type definitions
 │   │   └── utils/          # Utilities
-│   ├── prisma/             # Database schema
+│   ├── db/                 # Database migrations
+│   │   ├── schema.sql      # SQL schema definition
+│   │   └── migrate.js      # Migration runner
 │   ├── Dockerfile          # Docker build configuration
 │   └── package.json
 ├── frontend/

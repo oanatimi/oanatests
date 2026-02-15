@@ -1,8 +1,8 @@
-import prisma from '../config/database';
+import { query, queryOne, execute } from '../config/database';
 import { logger } from '../utils/logger';
 import { smsService } from './smsService';
 import { config } from '../config';
-import { MessageStatus, QueueStatus } from '@prisma/client';
+import { MessageStatus, QueueStatus, Message, MessageQueue } from '../types/database';
 
 interface QueuedMessage {
   messageId: string;
@@ -44,24 +44,23 @@ class MessageQueueService {
     content: string
   ): Promise<string> {
     // Create message record
-    const message = await prisma.message.create({
-      data: {
-        clientId,
-        phoneNumber,
-        content,
-        status: MessageStatus.QUEUED,
-      },
-    });
+    const message = await queryOne<Message>(
+      `INSERT INTO "Message" (id, "clientId", "phoneNumber", content, status, "retryCount", "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, 0, NOW(), NOW())
+       RETURNING *`,
+      [clientId, phoneNumber, content, MessageStatus.QUEUED]
+    );
+    
+    if (!message) {
+      throw new Error('Failed to create message');
+    }
     
     // Add to queue
-    await prisma.messageQueue.create({
-      data: {
-        messageId: message.id,
-        priority: 0,
-        maxAttempts: config.rateLimits.maxRetries,
-        status: QueueStatus.PENDING,
-      },
-    });
+    await execute(
+      `INSERT INTO "MessageQueue" (id, "messageId", priority, attempts, "maxAttempts", "nextRetry", status, "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, 0, 0, $2, NOW(), $3, NOW(), NOW())`,
+      [message.id, config.rateLimits.maxRetries, QueueStatus.PENDING]
+    );
     
     logger.info(`Message ${message.id} added to queue for ${phoneNumber}`);
     return message.id;
@@ -89,22 +88,15 @@ class MessageQueueService {
     
     try {
       // Get pending messages from queue
-      const queuedItems = await prisma.messageQueue.findMany({
-        where: {
-          status: QueueStatus.PENDING,
-          nextRetry: {
-            lte: new Date(),
-          },
-          attempts: {
-            lt: config.rateLimits.maxRetries,
-          },
-        },
-        orderBy: [
-          { priority: 'desc' },
-          { createdAt: 'asc' },
-        ],
-        take: config.queue.batchSize,
-      });
+      const queuedItems = await query<MessageQueue>(
+        `SELECT * FROM "MessageQueue" 
+         WHERE status = $1 
+         AND "nextRetry" <= NOW() 
+         AND attempts < $2
+         ORDER BY priority DESC, "createdAt" ASC
+         LIMIT $3`,
+        [QueueStatus.PENDING, config.rateLimits.maxRetries, config.queue.batchSize]
+      );
       
       for (const queueItem of queuedItems) {
         await this.processQueueItem(queueItem.id, queueItem.messageId);
@@ -119,99 +111,81 @@ class MessageQueueService {
   private async processQueueItem(queueId: string, messageId: string) {
     try {
       // Update queue status
-      await prisma.messageQueue.update({
-        where: { id: queueId },
-        data: { status: QueueStatus.PROCESSING },
-      });
+      await execute(
+        'UPDATE "MessageQueue" SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+        [QueueStatus.PROCESSING, queueId]
+      );
       
       // Get message details
-      const message = await prisma.message.findUnique({
-        where: { id: messageId },
-      });
+      const message = await queryOne<Message>(
+        'SELECT * FROM "Message" WHERE id = $1',
+        [messageId]
+      );
       
       if (!message) {
         logger.error(`Message ${messageId} not found`);
-        await prisma.messageQueue.update({
-          where: { id: queueId },
-          data: { 
-            status: QueueStatus.FAILED,
-            lastError: 'Message not found',
-          },
-        });
+        await execute(
+          'UPDATE "MessageQueue" SET status = $1, "lastError" = $2, "updatedAt" = NOW() WHERE id = $3',
+          [QueueStatus.FAILED, 'Message not found', queueId]
+        );
         return;
       }
       
       // Update message status
-      await prisma.message.update({
-        where: { id: messageId },
-        data: { status: MessageStatus.SENDING },
-      });
+      await execute(
+        'UPDATE "Message" SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+        [MessageStatus.SENDING, messageId]
+      );
       
       // Send SMS
       const result = await smsService.sendSms(message.phoneNumber, message.content);
       
       if (result.success) {
         // Success - mark as completed
-        await prisma.message.update({
-          where: { id: messageId },
-          data: {
-            status: MessageStatus.SENT,
-            sentAt: new Date(),
-          },
-        });
+        await execute(
+          'UPDATE "Message" SET status = $1, "sentAt" = NOW(), "updatedAt" = NOW() WHERE id = $2',
+          [MessageStatus.SENT, messageId]
+        );
         
-        await prisma.messageQueue.update({
-          where: { id: queueId },
-          data: { status: QueueStatus.COMPLETED },
-        });
+        await execute(
+          'UPDATE "MessageQueue" SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+          [QueueStatus.COMPLETED, queueId]
+        );
         
         logger.info(`Message ${messageId} sent successfully`);
       } else if (result.retryable) {
         // Retryable error
-        const queueItem = await prisma.messageQueue.findUnique({
-          where: { id: queueId },
-        });
+        const queueItem = await queryOne<MessageQueue>(
+          'SELECT * FROM "MessageQueue" WHERE id = $1',
+          [queueId]
+        );
         
         const newAttempts = (queueItem?.attempts || 0) + 1;
         const isDeadLetter = newAttempts >= config.rateLimits.maxRetries;
+        const nextRetry = new Date(Date.now() + config.rateLimits.retryDelayMs * Math.pow(2, newAttempts - 1));
         
-        await prisma.messageQueue.update({
-          where: { id: queueId },
-          data: {
-            status: isDeadLetter ? QueueStatus.DEAD_LETTER : QueueStatus.PENDING,
-            attempts: newAttempts,
-            lastError: result.error,
-            nextRetry: new Date(Date.now() + config.rateLimits.retryDelayMs * Math.pow(2, newAttempts - 1)),
-          },
-        });
+        await execute(
+          'UPDATE "MessageQueue" SET status = $1, attempts = $2, "lastError" = $3, "nextRetry" = $4, "updatedAt" = NOW() WHERE id = $5',
+          [isDeadLetter ? QueueStatus.DEAD_LETTER : QueueStatus.PENDING, newAttempts, result.error, nextRetry, queueId]
+        );
         
-        await prisma.message.update({
-          where: { id: messageId },
-          data: {
-            status: isDeadLetter ? MessageStatus.FAILED : MessageStatus.QUEUED,
-            retryCount: newAttempts,
-            errorMessage: result.error,
-          },
-        });
+        await execute(
+          'UPDATE "Message" SET status = $1, "retryCount" = $2, "errorMessage" = $3, "updatedAt" = NOW() WHERE id = $4',
+          [isDeadLetter ? MessageStatus.FAILED : MessageStatus.QUEUED, newAttempts, result.error, messageId]
+        );
         
         logger.warn(`Message ${messageId} will be retried (attempt ${newAttempts})`);
       } else {
         // Non-retryable error
-        await prisma.message.update({
-          where: { id: messageId },
-          data: {
-            status: MessageStatus.FAILED,
-            errorMessage: result.error,
-          },
-        });
+        await execute(
+          'UPDATE "Message" SET status = $1, "errorMessage" = $2, "updatedAt" = NOW() WHERE id = $3',
+          [MessageStatus.FAILED, result.error, messageId]
+        );
         
-        await prisma.messageQueue.update({
-          where: { id: queueId },
-          data: {
-            status: QueueStatus.FAILED,
-            lastError: result.error,
-          },
-        });
+        await execute(
+          'UPDATE "MessageQueue" SET status = $1, "lastError" = $2, "updatedAt" = NOW() WHERE id = $3',
+          [QueueStatus.FAILED, result.error, queueId]
+        );
         
         logger.error(`Message ${messageId} failed permanently: ${result.error}`);
       }
@@ -219,14 +193,11 @@ class MessageQueueService {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`Error processing queue item ${queueId}: ${errorMsg}`);
       
-      await prisma.messageQueue.update({
-        where: { id: queueId },
-        data: {
-          status: QueueStatus.PENDING,
-          lastError: errorMsg,
-          nextRetry: new Date(Date.now() + config.rateLimits.retryDelayMs),
-        },
-      });
+      const nextRetry = new Date(Date.now() + config.rateLimits.retryDelayMs);
+      await execute(
+        'UPDATE "MessageQueue" SET status = $1, "lastError" = $2, "nextRetry" = $3, "updatedAt" = NOW() WHERE id = $4',
+        [QueueStatus.PENDING, errorMsg, nextRetry, queueId]
+      );
     }
   }
   
@@ -237,29 +208,32 @@ class MessageQueueService {
     failed: number;
     deadLetter: number;
   }> {
-    const [pending, processing, completed, failed, deadLetter] = await Promise.all([
-      prisma.messageQueue.count({ where: { status: QueueStatus.PENDING } }),
-      prisma.messageQueue.count({ where: { status: QueueStatus.PROCESSING } }),
-      prisma.messageQueue.count({ where: { status: QueueStatus.COMPLETED } }),
-      prisma.messageQueue.count({ where: { status: QueueStatus.FAILED } }),
-      prisma.messageQueue.count({ where: { status: QueueStatus.DEAD_LETTER } }),
-    ]);
+    const result = await query<{ status: QueueStatus; count: string }>(
+      'SELECT status, COUNT(*) as count FROM "MessageQueue" GROUP BY status'
+    );
     
-    return { pending, processing, completed, failed, deadLetter };
+    const stats: Record<string, number> = {};
+    for (const row of result) {
+      stats[row.status] = parseInt(row.count, 10);
+    }
+    
+    return {
+      pending: stats[QueueStatus.PENDING] || 0,
+      processing: stats[QueueStatus.PROCESSING] || 0,
+      completed: stats[QueueStatus.COMPLETED] || 0,
+      failed: stats[QueueStatus.FAILED] || 0,
+      deadLetter: stats[QueueStatus.DEAD_LETTER] || 0,
+    };
   }
   
   async retryDeadLetterMessages(): Promise<number> {
-    const result = await prisma.messageQueue.updateMany({
-      where: { status: QueueStatus.DEAD_LETTER },
-      data: {
-        status: QueueStatus.PENDING,
-        attempts: 0,
-        nextRetry: new Date(),
-      },
-    });
+    const result = await execute(
+      'UPDATE "MessageQueue" SET status = $1, attempts = 0, "nextRetry" = NOW(), "updatedAt" = NOW() WHERE status = $2',
+      [QueueStatus.PENDING, QueueStatus.DEAD_LETTER]
+    );
     
-    logger.info(`Reset ${result.count} dead letter messages for retry`);
-    return result.count;
+    logger.info(`Reset ${result.rowCount} dead letter messages for retry`);
+    return result.rowCount;
   }
 }
 
