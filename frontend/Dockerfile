@@ -35,10 +35,13 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./
 
-# Note: Railway assigns PORT dynamically at runtime
-# Next.js automatically uses PORT env var when set
-# Railway handles healthchecks via healthcheckPath in railway.json
-# Docker HEALTHCHECK is not needed and can interfere with Railway
+# PORT configuration:
+# - Railway: Assigns PORT dynamically at runtime; Next.js uses it automatically
+# - Local Docker: Set PORT environment variable explicitly (e.g., docker run -e PORT=3000)
+#
+# Health checks:
+# - Railway: Uses healthcheckPath in railway.json; Docker HEALTHCHECK not needed
+# - Local Docker: Configure health checks externally (docker-compose or orchestrator)
 
 # Start command - Next.js automatically uses PORT env var
 CMD ["npm", "start"]
