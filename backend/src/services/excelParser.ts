@@ -357,8 +357,8 @@ export async function importClientsFromExcel(filePaths: string[]): Promise<{
             where: {
               OR: [
                 { companyName: clientData.companyName, phonePrimary: clientData.phonePrimary },
-                { cui: clientData.cui ? clientData.cui : undefined },
-              ].filter(Boolean),
+                ...(clientData.cui != null ? [{ cui: clientData.cui }] : []),
+              ],
             },
           });
           
