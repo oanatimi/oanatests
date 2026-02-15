@@ -12,6 +12,8 @@ const router = Router();
 const MAX_MESSAGE_LENGTH = config.smsBestPractices.maxLength;
 
 // Phone number format validation (E.164 format)
+// Note: E.164 allows 7-15 digits but some regions have shorter numbers
+// We use 7 as minimum to cover most international numbers while excluding invalid short strings
 function isValidPhoneNumber(phone: string): boolean {
   // E.164 format: + followed by 7-15 digits
   const e164Regex = /^\+[1-9]\d{6,14}$/;

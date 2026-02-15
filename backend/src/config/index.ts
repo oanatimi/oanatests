@@ -36,14 +36,19 @@ function getEnvBoolean(key: string, defaultValue: boolean): boolean {
 }
 
 // Helper function to get SMS URL with validation
+// Note: Uses console.warn instead of logger to avoid circular dependency (logger depends on config)
 function getTraccarSmsUrl(): string {
   const cloudflareUrl = process.env.CLOUDFLARE_TUNNEL_URL || '';
   const traccarUrl = process.env.TRACCAR_SMS_URL || '';
   const url = cloudflareUrl || traccarUrl;
   
-  // Log warning if no URL configured (will be validated at runtime when SMS is attempted)
+  // Store warning to be logged after app initialization
   if (!url && process.env.NODE_ENV !== 'test') {
-    console.warn('Warning: Neither CLOUDFLARE_TUNNEL_URL nor TRACCAR_SMS_URL is configured. SMS sending will fail until configured.');
+    // Use setTimeout to defer logging until after the app is initialized
+    // This avoids circular dependency with logger
+    setTimeout(() => {
+      console.warn('[Config] Warning: Neither CLOUDFLARE_TUNNEL_URL nor TRACCAR_SMS_URL is configured. SMS sending will fail until configured.');
+    }, 0);
   }
   
   return url;

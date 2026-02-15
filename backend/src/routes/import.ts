@@ -19,7 +19,9 @@ router.post('/clients', async (req: Request, res: Response) => {
       const relative = path.relative(baseDir, requestedDir);
 
       // Prevent directory traversal by ensuring the resolved path stays within baseDir
-      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      // path.relative already normalizes the path, so '../' segments are resolved
+      const normalizedRelative = path.normalize(relative);
+      if (normalizedRelative.startsWith('..') || path.isAbsolute(normalizedRelative)) {
         sendValidationError(res, 'The specified directory path is invalid or not allowed.');
         return;
       }
