@@ -8,7 +8,8 @@ import {
   FileSpreadsheet, 
   CheckCircle, 
   AlertCircle,
-  Loader
+  Loader,
+  Terminal
 } from 'lucide-react';
 
 export default function ImportPage() {
@@ -18,6 +19,7 @@ export default function ImportPage() {
     imported: number;
     skipped: number;
     errors: string[];
+    logs: string[];
   } | null>(null);
 
   const importMutation = useMutation({
@@ -109,6 +111,22 @@ export default function ImportPage() {
                         <li key={index}>{error}</li>
                       ))}
                     </ul>
+                  </div>
+                </div>
+              )}
+
+              {importResult.logs && importResult.logs.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                    <Terminal className="h-4 w-4 mr-2" />
+                    Import Logs ({importResult.logs.length})
+                  </h4>
+                  <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto font-mono text-xs">
+                    {importResult.logs.map((log, index) => (
+                      <div key={index} className="text-green-400 whitespace-pre-wrap">
+                        {log}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

@@ -45,6 +45,7 @@ router.post('/clients', async (req: Request, res: Response) => {
         imported: result.imported,
         skipped: result.skipped,
         errors: result.errors,
+        logs: result.logs,
       },
       message: `Import completed! ${result.imported} client(s) imported from ${excelFiles.length} file(s).${result.skipped > 0 ? ` ${result.skipped} duplicate(s) skipped.` : ''}${result.errors.length > 0 ? ` ${result.errors.length} error(s) encountered.` : ''}`,
     });
