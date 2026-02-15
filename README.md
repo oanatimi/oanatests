@@ -332,8 +332,7 @@ To avoid getting banned by SMS providers:
 │   │   │   └── smsValidationService.ts
 │   │   └── utils/          # Utilities
 │   ├── prisma/             # Database schema
-│   ├── Dockerfile
-│   ├── railway.json        # Railway deployment config
+│   ├── Dockerfile          # Docker build configuration
 │   └── package.json
 ├── frontend/
 │   ├── src/
