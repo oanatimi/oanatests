@@ -73,6 +73,10 @@ const REQUIRED_TABLES = [
   'SystemConfig'
 ];
 
+// Database schema constants
+const DB_SCHEMA = 'public';
+const TABLE_TYPE = 'BASE TABLE';
+
 // Database health check result interface
 export interface DatabaseHealthResult {
   connected: boolean;
@@ -97,21 +101,25 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
     result.connected = true;
     logger.info(`Database connection successful. Server time: ${connectivityTest.rows[0].current_time}`);
 
-    // Query for existing tables in the public schema
-    const tablesQuery = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `);
+    // Query for existing tables in the schema
+    const tablesQuery = await pool.query(
+      `SELECT table_name 
+       FROM information_schema.tables 
+       WHERE table_schema = $1 
+       AND table_type = $2
+       ORDER BY table_name`,
+      [DB_SCHEMA, TABLE_TYPE]
+    );
 
     const existingTableNames = tablesQuery.rows.map(row => row.table_name);
     result.existingTables = existingTableNames;
 
+    // Use Set for O(1) lookups when checking required tables
+    const existingTablesSet = new Set(existingTableNames);
+
     // Check for required tables
     for (const requiredTable of REQUIRED_TABLES) {
-      if (existingTableNames.includes(requiredTable)) {
+      if (existingTablesSet.has(requiredTable)) {
         logger.info(`✓ Table "${requiredTable}" exists`);
       } else {
         result.missingTables.push(requiredTable);
