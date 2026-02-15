@@ -212,32 +212,25 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 
 ## 🚂 Railway Deployment
 
-This repository includes Railway configuration files at the root for automatic deployment.
+This repository includes Railway configuration files at the root for automatic deployment. The `DATABASE_URL` is automatically prefilled to reference your Railway PostgreSQL service.
 
 ### Automatic Deploy (Recommended)
 
 1. Create a new project on [Railway](https://railway.app)
 
-2. **Add a PostgreSQL database**:
+2. **Add a PostgreSQL database** (must be named "Postgres"):
    - In your Railway project, click "+ New" (or right-click the canvas)
    - Select "Database" → "PostgreSQL"
    - Wait for it to provision
+   - **Important**: Keep the default service name "Postgres" for auto-linking to work
 
 3. **Connect your GitHub repository**:
    - Click "+ New" → "GitHub Repo"
    - Select this repository
    - Railway will automatically detect the `railway.json` and `Dockerfile` at the root
+   - The `DATABASE_URL` will be **automatically prefilled** with `${{Postgres.DATABASE_URL}}`
 
-4. **⚠️ IMPORTANT: Link the DATABASE_URL variable**:
-   - Click on your backend service (the GitHub repo deployment)
-   - Go to the "Variables" tab
-   - Click "Add Reference" or the "+" button
-   - Select the `DATABASE_URL` from your PostgreSQL service
-   - This links your PostgreSQL database connection string to your backend
-   
-   > **Note**: If you skip this step, you will get the error: `ERROR: DATABASE_URL environment variable is not set`
-
-5. **Add required environment variables**:
+4. **Add required environment variables**:
    - `CORS_ORIGIN` - Your frontend URL (e.g., `https://your-frontend.railway.app`)
    - `TRACCAR_SMS_URL` - Your Traccar SMS Gateway URL
    - `TRACCAR_SMS_DEVICE_ID` - Your device ID from Traccar SMS Gateway app
@@ -274,8 +267,10 @@ This error occurs when the PostgreSQL database connection is not linked to your 
 
 **Solution:**
 1. Make sure you have added a PostgreSQL database to your Railway project
-2. Go to your backend service → Variables tab
-3. Click "Add Reference" and select `DATABASE_URL` from your PostgreSQL service
+2. Verify the PostgreSQL service is named "Postgres" (default name) for auto-linking to work
+3. If using a different name, update the `DATABASE_URL` in your backend service Variables tab:
+   - Click "Add Reference" and select `DATABASE_URL` from your PostgreSQL service
+   - Or manually set it to `${{YourPostgresServiceName.DATABASE_URL}}`
 4. Redeploy your service
 
 #### Error: "Connection refused" or database connection errors
