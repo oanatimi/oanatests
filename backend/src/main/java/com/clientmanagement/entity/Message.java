@@ -18,8 +18,12 @@ public class Message extends PanacheEntityBase {
     @Column(name = "id")
     public String id;
 
-    @Column(name = "\"clientId\"", nullable = false)
+    @Column(name = "\"clientId\"", nullable = false, insertable = false, updatable = false)
     public String clientId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "\"clientId\"", nullable = false)
+    public Client client;
 
     @Column(name = "\"phoneNumber\"", nullable = false)
     public String phoneNumber;
