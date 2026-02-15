@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import path from 'path';
 import { logger } from '../utils/logger';
 import prisma from '../config/database';
+import { config } from '../config';
 
 interface ClientData {
   companyName: string;
@@ -180,15 +181,18 @@ function parseDate(value: unknown): Date | undefined {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
-function normalizePhoneNumber(phone: string | undefined): string | undefined {
+function normalizePhoneNumber(
+  phone: string | undefined,
+  defaultCountryCode: string = config.smsBestPractices.defaultCountryCode
+): string | undefined {
   if (!phone) return undefined;
   // Remove all non-digit characters except +
   let normalized = phone.replace(/[^\d+]/g, '');
-  // Handle Romanian phone numbers
+  // Handle phone numbers using the configured default country code
   if (normalized.startsWith('0')) {
-    normalized = '+40' + normalized.substring(1);
-  } else if (!normalized.startsWith('+')) {
-    normalized = '+40' + normalized;
+    normalized = defaultCountryCode + normalized.substring(1);
+  } else if (!normalized.startsWith('+') && defaultCountryCode) {
+    normalized = defaultCountryCode + normalized;
   }
   return normalized;
 }

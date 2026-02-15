@@ -35,6 +35,20 @@ function getEnvBoolean(key: string, defaultValue: boolean): boolean {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+// Helper function to get SMS URL with validation
+function getTraccarSmsUrl(): string {
+  const cloudflareUrl = process.env.CLOUDFLARE_TUNNEL_URL || '';
+  const traccarUrl = process.env.TRACCAR_SMS_URL || '';
+  const url = cloudflareUrl || traccarUrl;
+  
+  // Log warning if no URL configured (will be validated at runtime when SMS is attempted)
+  if (!url && process.env.NODE_ENV !== 'test') {
+    console.warn('Warning: Neither CLOUDFLARE_TUNNEL_URL nor TRACCAR_SMS_URL is configured. SMS sending will fail until configured.');
+  }
+  
+  return url;
+}
+
 export const config = {
   port: getEnvNumber('PORT', 3001),
   nodeEnv: getEnvVar('NODE_ENV', 'development'),
@@ -45,7 +59,7 @@ export const config = {
   
   traccarSms: {
     // URL can be either direct Traccar URL or Cloudflare tunnel URL
-    url: getEnvVar('CLOUDFLARE_TUNNEL_URL', '') || getEnvVar('TRACCAR_SMS_URL', ''),
+    url: getTraccarSmsUrl(),
     deviceId: getEnvVar('TRACCAR_SMS_DEVICE_ID', ''),
     apiToken: getEnvVar('TRACCAR_API_TOKEN', ''),
   },
@@ -73,6 +87,7 @@ export const config = {
     senderName: getEnvVar('SMS_SENDER_NAME', 'YourCompany'),
     optOutKeyword: getEnvVar('SMS_OPT_OUT_KEYWORD', 'STOP'),
     requireOptOutInfo: getEnvBoolean('SMS_REQUIRE_OPT_OUT_INFO', true),
+    defaultCountryCode: getEnvVar('SMS_DEFAULT_COUNTRY_CODE', '+40'), // Romanian default
   },
   
   cors: {

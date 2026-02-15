@@ -28,9 +28,12 @@ A full-stack application for managing clients and sending SMS messages via Tracc
 
 ### Client Management
 - **Excel Import**: Import clients from Excel files (.xlsx) with automatic column mapping
-- **Search & Filter**: Search clients by name, phone, email; filter by county
+- **Client Categories**: Automatic categorization based on Excel sheet names (Construcții, Agricultură, Comerț Lemn, General)
+- **Full Data Persistence**: All Excel data preserved including observations, contact person, contact date
+- **Search & Filter**: Search clients by name, phone, email; filter by county and category
 - **Client Details**: View comprehensive client information including contact details, company info, and message history
 - **Bulk Selection**: Select multiple clients for bulk operations
+- **Pagination**: Efficient loading with 20 clients per page
 
 ### SMS Messaging
 - **Traccar SMS Gateway Integration**: Send SMS via Traccar SMS Gateway
@@ -52,6 +55,13 @@ A full-stack application for managing clients and sending SMS messages via Tracc
 - **Duplicate Prevention**: Prevents sending duplicate messages
 - **Opt-Out Support**: Recipients can opt out by replying with a keyword
 - **Message Validation**: Content length and spam pattern detection
+- **Phone Number Normalization**: Configurable country code (default +40 for Romania)
+
+### User Experience
+- **User-Friendly Error Messages**: Clear, actionable error descriptions instead of technical codes
+- **Responsive Design**: Works seamlessly on desktop and mobile
+- **Template Selection**: Choose and edit templates when sending messages
+- **Real-time Feedback**: Immediate success/error notifications
 
 ## 🏗️ Architecture
 

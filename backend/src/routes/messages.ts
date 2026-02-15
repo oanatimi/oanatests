@@ -1,11 +1,24 @@
 import { Router, Request, Response } from 'express';
+import { Prisma, MessageStatus } from '@prisma/client';
 import prisma from '../config/database';
-import { logger } from '../utils/logger';
 import { messageQueueService } from '../services/messageQueueService';
 import { smsService } from '../services/smsService';
-import { MessageStatus } from '@prisma/client';
+import { config } from '../config';
+import { handleError, sendValidationError, sendNotFoundError } from '../utils/errorHandler';
 
 const router = Router();
+
+// Max message length for validation
+const MAX_MESSAGE_LENGTH = config.smsBestPractices.maxLength;
+
+// Phone number format validation (E.164 format)
+function isValidPhoneNumber(phone: string): boolean {
+  // E.164 format: + followed by 7-15 digits
+  const e164Regex = /^\+[1-9]\d{6,14}$/;
+  // Also allow numbers starting with 0 (will be normalized later)
+  const localRegex = /^0[1-9]\d{7,10}$/;
+  return e164Regex.test(phone) || localRegex.test(phone);
+}
 
 // Get all messages with pagination
 router.get('/', async (req: Request, res: Response) => {
@@ -15,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
     const status = req.query.status as MessageStatus;
     const clientId = req.query.clientId as string;
     
-    const where: Record<string, unknown> = {};
+    const where: Prisma.MessageWhereInput = {};
     
     if (status) {
       where.status = status;
@@ -45,6 +58,7 @@ router.get('/', async (req: Request, res: Response) => {
     ]);
     
     res.json({
+      success: true,
       data: messages,
       pagination: {
         page,
@@ -54,8 +68,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error(`Error fetching messages: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    handleError(res, error, 'Error fetching messages');
   }
 });
 
@@ -65,7 +78,18 @@ router.post('/send', async (req: Request, res: Response) => {
     const { clientId, content, phoneNumber } = req.body;
     
     if (!clientId || !content) {
-      res.status(400).json({ error: 'clientId and content are required' });
+      sendValidationError(res, 'Please provide both a client and message content.');
+      return;
+    }
+    
+    // Validate message content length before queuing
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      sendValidationError(res, 'Message content cannot be empty. Please enter a message.');
+      return;
+    }
+    
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      sendValidationError(res, `Your message is too long. Please keep it under ${MAX_MESSAGE_LENGTH} characters (current: ${content.length}).`);
       return;
     }
     
@@ -74,11 +98,11 @@ router.post('/send', async (req: Request, res: Response) => {
     if (!phone) {
       const client = await prisma.client.findUnique({
         where: { id: clientId },
-        select: { phonePrimary: true, phoneContact: true },
+        select: { phonePrimary: true, phoneContact: true, companyName: true },
       });
       
       if (!client) {
-        res.status(404).json({ error: 'Client not found' });
+        sendNotFoundError(res, 'Client');
         return;
       }
       
@@ -86,7 +110,13 @@ router.post('/send', async (req: Request, res: Response) => {
     }
     
     if (!phone) {
-      res.status(400).json({ error: 'No phone number available for this client' });
+      sendValidationError(res, 'This client does not have a phone number. Please add a phone number first.');
+      return;
+    }
+    
+    // Validate phone number format
+    if (!isValidPhoneNumber(phone)) {
+      sendValidationError(res, 'The phone number format is invalid. Please use a valid phone number format.');
       return;
     }
     
@@ -94,12 +124,11 @@ router.post('/send', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      messageId,
-      message: 'Message queued for sending',
+      data: { messageId },
+      message: 'Your message has been queued and will be sent shortly.',
     });
   } catch (error) {
-    logger.error(`Error sending message: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to send message' });
+    handleError(res, error, 'Error sending message');
   }
 });
 
@@ -109,12 +138,23 @@ router.post('/bulk', async (req: Request, res: Response) => {
     const { clientIds, content } = req.body;
     
     if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
-      res.status(400).json({ error: 'clientIds array is required' });
+      sendValidationError(res, 'Please select at least one client to send messages to.');
       return;
     }
     
     if (!content) {
-      res.status(400).json({ error: 'content is required' });
+      sendValidationError(res, 'Please enter a message to send.');
+      return;
+    }
+    
+    // Validate message content length before queuing
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      sendValidationError(res, 'Message content cannot be empty. Please enter a message.');
+      return;
+    }
+    
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      sendValidationError(res, `Your message is too long. Please keep it under ${MAX_MESSAGE_LENGTH} characters (current: ${content.length}).`);
       return;
     }
     
@@ -142,7 +182,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
     const skipped = clients.length - messages.length;
     
     if (messages.length === 0) {
-      res.status(400).json({ error: 'No valid phone numbers found for selected clients' });
+      sendValidationError(res, 'None of the selected clients have valid phone numbers. Please add phone numbers first.');
       return;
     }
     
@@ -150,13 +190,14 @@ router.post('/bulk', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      queued: messageIds.length,
-      skipped,
-      message: `${messageIds.length} messages queued for sending`,
+      data: {
+        queued: messageIds.length,
+        skipped,
+      },
+      message: `${messageIds.length} message(s) queued for sending.${skipped > 0 ? ` ${skipped} client(s) skipped due to missing phone numbers.` : ''}`,
     });
   } catch (error) {
-    logger.error(`Error sending bulk messages: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to send bulk messages' });
+    handleError(res, error, 'Error sending bulk messages');
   }
 });
 
@@ -167,12 +208,14 @@ router.get('/queue/status', async (_req: Request, res: Response) => {
     const rateLimitStatus = smsService.getRateLimitStatus();
     
     res.json({
-      queue: queueStats,
-      rateLimit: rateLimitStatus,
+      success: true,
+      data: {
+        queue: queueStats,
+        rateLimit: rateLimitStatus,
+      },
     });
   } catch (error) {
-    logger.error(`Error fetching queue status: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch queue status' });
+    handleError(res, error, 'Error fetching queue status');
   }
 });
 
@@ -183,11 +226,11 @@ router.post('/queue/retry-dead-letters', async (_req: Request, res: Response) =>
     
     res.json({
       success: true,
-      retriedCount: count,
+      data: { retriedCount: count },
+      message: count > 0 ? `${count} failed message(s) have been queued for retry.` : 'No failed messages to retry.',
     });
   } catch (error) {
-    logger.error(`Error retrying dead letters: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to retry dead letter messages' });
+    handleError(res, error, 'Error retrying dead letters');
   }
 });
 
@@ -198,10 +241,9 @@ router.get('/templates', async (_req: Request, res: Response) => {
       orderBy: { name: 'asc' },
     });
     
-    res.json(templates);
+    res.json({ success: true, data: templates });
   } catch (error) {
-    logger.error(`Error fetching templates: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch templates' });
+    handleError(res, error, 'Error fetching templates');
   }
 });
 
@@ -211,7 +253,7 @@ router.post('/templates', async (req: Request, res: Response) => {
     const { name, content } = req.body;
     
     if (!name || !content) {
-      res.status(400).json({ error: 'name and content are required' });
+      sendValidationError(res, 'Please provide both a name and content for the template.');
       return;
     }
     
@@ -219,10 +261,13 @@ router.post('/templates', async (req: Request, res: Response) => {
       data: { name, content },
     });
     
-    res.json(template);
+    res.json({
+      success: true,
+      data: template,
+      message: 'Template created successfully.',
+    });
   } catch (error) {
-    logger.error(`Error creating template: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to create template' });
+    handleError(res, error, 'Error creating template');
   }
 });
 
@@ -236,10 +281,13 @@ router.put('/templates/:id', async (req: Request, res: Response) => {
       data: { name, content },
     });
     
-    res.json(template);
+    res.json({
+      success: true,
+      data: template,
+      message: 'Template updated successfully.',
+    });
   } catch (error) {
-    logger.error(`Error updating template: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to update template' });
+    handleError(res, error, 'Error updating template');
   }
 });
 
@@ -250,10 +298,12 @@ router.delete('/templates/:id', async (req: Request, res: Response) => {
       where: { id: req.params.id },
     });
     
-    res.json({ success: true });
+    res.json({
+      success: true,
+      message: 'Template deleted successfully.',
+    });
   } catch (error) {
-    logger.error(`Error deleting template: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to delete template' });
+    handleError(res, error, 'Error deleting template');
   }
 });
 

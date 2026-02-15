@@ -96,7 +96,7 @@ class MessageQueueService {
             lte: new Date(),
           },
           attempts: {
-            lt: prisma.messageQueue.fields.maxAttempts,
+            lt: config.rateLimits.maxRetries,
           },
         },
         orderBy: [

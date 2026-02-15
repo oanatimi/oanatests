@@ -1,8 +1,17 @@
 import { Router, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
-import { logger } from '../utils/logger';
+import { handleError, sendNotFoundError } from '../utils/errorHandler';
 
 const router = Router();
+
+// Whitelist of allowed sort fields for security
+const ALLOWED_SORT_FIELDS = ['companyName', 'county', 'createdAt', 'updatedAt', 'category', 'administrator'] as const;
+type AllowedSortField = typeof ALLOWED_SORT_FIELDS[number];
+
+function isAllowedSortField(field: string): field is AllowedSortField {
+  return ALLOWED_SORT_FIELDS.includes(field as AllowedSortField);
+}
 
 // Get all clients with pagination and search
 router.get('/', async (req: Request, res: Response) => {
@@ -12,10 +21,13 @@ router.get('/', async (req: Request, res: Response) => {
     const search = req.query.search as string;
     const county = req.query.county as string;
     const category = req.query.category as string;
-    const sortBy = req.query.sortBy as string || 'companyName';
+    const sortByParam = req.query.sortBy as string || 'companyName';
     const sortOrder = (req.query.sortOrder as string || 'asc') === 'desc' ? 'desc' : 'asc';
     
-    const where: Record<string, unknown> = {};
+    // Validate sortBy against whitelist to prevent injection
+    const sortBy: AllowedSortField = isAllowedSortField(sortByParam) ? sortByParam : 'companyName';
+    
+    const where: Prisma.ClientWhereInput = {};
     
     if (search) {
       where.OR = [
@@ -51,6 +63,7 @@ router.get('/', async (req: Request, res: Response) => {
     ]);
     
     res.json({
+      success: true,
       data: clients,
       pagination: {
         page,
@@ -60,8 +73,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error(`Error fetching clients: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch clients' });
+    handleError(res, error, 'Error fetching clients');
   }
 });
 
@@ -75,10 +87,9 @@ router.get('/counties', async (_req: Request, res: Response) => {
       orderBy: { county: 'asc' },
     });
     
-    res.json(counties.map(c => c.county).filter(Boolean));
+    res.json({ success: true, data: counties.map(c => c.county).filter(Boolean) });
   } catch (error) {
-    logger.error(`Error fetching counties: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch counties' });
+    handleError(res, error, 'Error fetching counties');
   }
 });
 
@@ -92,10 +103,9 @@ router.get('/categories', async (_req: Request, res: Response) => {
       orderBy: { category: 'asc' },
     });
     
-    res.json(categories.map(c => c.category).filter(Boolean));
+    res.json({ success: true, data: categories.map(c => c.category).filter(Boolean) });
   } catch (error) {
-    logger.error(`Error fetching categories: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+    handleError(res, error, 'Error fetching categories');
   }
 });
 
@@ -113,14 +123,13 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
     
     if (!client) {
-      res.status(404).json({ error: 'Client not found' });
+      sendNotFoundError(res, 'Client');
       return;
     }
     
-    res.json(client);
+    res.json({ success: true, data: client });
   } catch (error) {
-    logger.error(`Error fetching client: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to fetch client' });
+    handleError(res, error, 'Error fetching client');
   }
 });
 
@@ -138,10 +147,9 @@ router.put('/:id', async (req: Request, res: Response) => {
       data: updateData,
     });
     
-    res.json(client);
+    res.json({ success: true, data: client, message: 'Client updated successfully.' });
   } catch (error) {
-    logger.error(`Error updating client: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to update client' });
+    handleError(res, error, 'Error updating client');
   }
 });
 
@@ -152,10 +160,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
       where: { id: req.params.id },
     });
     
-    res.json({ success: true });
+    res.json({ success: true, message: 'Client deleted successfully.' });
   } catch (error) {
-    logger.error(`Error deleting client: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to delete client' });
+    handleError(res, error, 'Error deleting client');
   }
 });
 

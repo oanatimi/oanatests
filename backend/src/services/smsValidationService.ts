@@ -305,9 +305,15 @@ export class SmsValidationService {
       if (optedOut) {
         errors.push('Recipient has opted out of receiving messages');
       }
-    } catch {
-      // OptOut table might not exist yet, skip this check
-      logger.debug('OptOut check skipped - table may not exist');
+    } catch (error) {
+      // Log the actual error for debugging, but don't fail validation
+      // This handles cases where the OptOut table doesn't exist yet
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('does not exist') || errorMessage.includes('relation') || errorMessage.includes('table')) {
+        logger.debug('OptOut check skipped - table may not exist yet');
+      } else {
+        logger.warn(`OptOut check failed with unexpected error: ${errorMessage}`);
+      }
     }
 
     // Check daily limit

@@ -1,38 +1,53 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
-import { logger } from '../utils/logger';
 import { config } from '../config';
 import { importClientsFromExcel, getExcelFilesFromDirectory } from '../services/excelParser';
+import { handleError, sendValidationError } from '../utils/errorHandler';
 
 const router = Router();
 
 // Import clients from Excel files in the data directory
 router.post('/clients', async (req: Request, res: Response) => {
   try {
-    // Use directory from request body, env var, or default to project root
-    const dataDir = req.body.directory || config.excel.dataDirectory || path.resolve(__dirname, '../../../..');
+    // Determine base directory from config or default to project root
+    const baseDir = config.excel.dataDirectory || path.resolve(__dirname, '../../../..');
+
+    // Safely resolve and validate requested directory (if provided) against the base directory
+    let dataDir = baseDir;
+    if (typeof req.body.directory === 'string' && req.body.directory.trim() !== '') {
+      const requestedDir = path.resolve(baseDir, req.body.directory);
+      const relative = path.relative(baseDir, requestedDir);
+
+      // Prevent directory traversal by ensuring the resolved path stays within baseDir
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        sendValidationError(res, 'The specified directory path is invalid or not allowed.');
+        return;
+      }
+
+      dataDir = requestedDir;
+    }
     
     const excelFiles = await getExcelFilesFromDirectory(dataDir);
     
     if (excelFiles.length === 0) {
-      res.status(404).json({ error: 'No Excel files found in directory' });
+      sendValidationError(res, 'No Excel files (.xlsx) were found in the specified directory. Please check the path and try again.');
       return;
     }
-    
-    logger.info(`Found ${excelFiles.length} Excel files to import`);
     
     const result = await importClientsFromExcel(excelFiles);
     
     res.json({
       success: true,
-      filesProcessed: excelFiles.length,
-      imported: result.imported,
-      skipped: result.skipped,
-      errors: result.errors,
+      data: {
+        filesProcessed: excelFiles.length,
+        imported: result.imported,
+        skipped: result.skipped,
+        errors: result.errors,
+      },
+      message: `Import completed! ${result.imported} client(s) imported from ${excelFiles.length} file(s).${result.skipped > 0 ? ` ${result.skipped} duplicate(s) skipped.` : ''}${result.errors.length > 0 ? ` ${result.errors.length} error(s) encountered.` : ''}`,
     });
   } catch (error) {
-    logger.error(`Error importing clients: ${error instanceof Error ? error.message : String(error)}`);
-    res.status(500).json({ error: 'Failed to import clients' });
+    handleError(res, error, 'Error importing clients');
   }
 });
 
