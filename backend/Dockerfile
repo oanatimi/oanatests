@@ -1,43 +1,48 @@
-# Backend Dockerfile for Railway deployment
-FROM node:20-alpine AS builder
+# Backend Dockerfile for Railway deployment - Quarkus/Java
+FROM eclipse-temurin:17-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install Maven
+RUN apk add --no-cache maven
 
-# Install dependencies
-RUN npm ci
+# Copy Maven config files
+COPY pom.xml ./
+
+# Download dependencies (cached unless pom.xml changes)
+RUN mvn dependency:go-offline -B
 
 # Copy source code
-COPY . .
+COPY src ./src
 
-# Build TypeScript
-RUN npm run build
+# Build the application
+RUN mvn package -DskipTests -B
 
-# Production stage
-FROM node:20-alpine AS production
+# Production stage - use JRE only
+FROM eclipse-temurin:17-jre-alpine AS production
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Create non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Install production dependencies only
-RUN npm ci --omit=dev
+# Copy the built JAR file
+COPY --from=builder /app/target/quarkus-app/lib/ /app/lib/
+COPY --from=builder /app/target/quarkus-app/*.jar /app/
+COPY --from=builder /app/target/quarkus-app/app/ /app/app/
+COPY --from=builder /app/target/quarkus-app/quarkus/ /app/quarkus/
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Set ownership
+RUN chown -R appuser:appgroup /app
 
-# Copy database migration files
-COPY --from=builder /app/db ./db
+# Switch to non-root user
+USER appuser
 
-# Copy startup script
-COPY --from=builder /app/scripts ./scripts
-RUN chmod +x ./scripts/start.sh
+# Quarkus configuration for container deployment
+ENV JAVA_OPTS="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 
-# Note: Railway assigns PORT dynamically at runtime
-# EXPOSE is not needed for Railway deployment
+# Note: Railway assigns PORT dynamically at runtime via QUARKUS_HTTP_PORT or PORT env var
+# The application.properties already configures: quarkus.http.port=${PORT:8080}
 
-# Start command using startup script (similar to frontend approach)
-CMD ["./scripts/start.sh"]
+# Start the Quarkus application
+CMD ["java", "-jar", "/app/quarkus-run.jar"]
