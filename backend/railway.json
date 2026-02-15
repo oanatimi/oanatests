@@ -11,7 +11,7 @@
     "envVars": {
       "DATABASE_URL": {
         "description": "PostgreSQL JDBC connection string (auto-linked from Railway Postgres)",
-        "default": "jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}"
+        "default": "jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}?sslmode=require"
       },
       "DB_USER": {
         "description": "PostgreSQL user (auto-linked from Railway Postgres)",

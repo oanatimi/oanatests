@@ -7,7 +7,11 @@ import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.eclipse.microprofile.health.HealthCheckResponseBuilder;
 import org.eclipse.microprofile.health.Readiness;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.jboss.logging.Logger;
+
+import java.util.Arrays;
+import java.util.Set;
 
 /**
  * Health check for database connectivity.
@@ -17,6 +21,11 @@ import org.jboss.logging.Logger;
 public class DatabaseHealthCheck implements HealthCheck {
 
     private static final Logger LOG = Logger.getLogger(DatabaseHealthCheck.class);
+
+    // Allowed table names (whitelist for security)
+    private static final Set<String> REQUIRED_TABLES = Set.of(
+        "Client", "Message", "MessageQueue", "MessageTemplate", "OptOut", "SystemConfig"
+    );
 
     @Inject
     EntityManager entityManager;
@@ -29,15 +38,21 @@ public class DatabaseHealthCheck implements HealthCheck {
             // Test database connectivity
             entityManager.createNativeQuery("SELECT 1").getSingleResult();
             
-            // Check required tables
-            String[] requiredTables = {"Client", "Message", "MessageQueue", "MessageTemplate", "OptOut", "SystemConfig"};
+            // Check required tables using parameterized query
             boolean allTablesExist = true;
             
-            for (String table : requiredTables) {
+            for (String table : REQUIRED_TABLES) {
                 try {
-                    Long count = ((Number) entityManager.createNativeQuery(
-                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '" + table + "'"
-                    ).getSingleResult()).longValue();
+                    Query query = entityManager.createNativeQuery(
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?1"
+                    );
+                    query.setParameter(1, table);
+                    Object result = query.getSingleResult();
+                    
+                    long count = 0;
+                    if (result instanceof Number) {
+                        count = ((Number) result).longValue();
+                    }
                     
                     if (count == 0) {
                         allTablesExist = false;
