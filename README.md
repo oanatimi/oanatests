@@ -215,7 +215,8 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 1. Create a new project on [Railway](https://railway.app)
 2. Add a PostgreSQL database
 3. Connect your GitHub repository
-4. Add the following environment variables:
+4. **Set the root directory to `/backend`** in the service settings
+5. Add the following environment variables:
    - All backend environment variables listed above
    - `DATABASE_URL` (automatically provided by Railway PostgreSQL)
 
@@ -232,7 +233,10 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
    # Select PostgreSQL
    ```
 
-3. **Deploy**
+3. **Set root directory**
+   - In the Railway dashboard, set the service root directory to `/backend`
+
+4. **Deploy**
    ```bash
    railway up
    ```
@@ -329,6 +333,7 @@ To avoid getting banned by SMS providers:
 │   │   └── utils/          # Utilities
 │   ├── prisma/             # Database schema
 │   ├── Dockerfile
+│   ├── railway.json        # Railway deployment config
 │   └── package.json
 ├── frontend/
 │   ├── src/
@@ -345,7 +350,6 @@ To avoid getting banned by SMS providers:
 ├── docs/
 │   └── screenshots/        # UI screenshots
 ├── docker-compose.yml
-├── railway.json
 └── README.md
 ```
 
