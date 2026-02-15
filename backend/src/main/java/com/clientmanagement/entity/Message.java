@@ -21,10 +21,6 @@ public class Message extends PanacheEntityBase {
     @Column(name = "\"clientId\"", nullable = false)
     public String clientId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "\"clientId\"", insertable = false, updatable = false)
-    public Client client;
-
     @Column(name = "\"phoneNumber\"", nullable = false)
     public String phoneNumber;
 
