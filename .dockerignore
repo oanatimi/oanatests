@@ -31,8 +31,6 @@ dist
 .gitignore
 
 # Docker
-Dockerfile
-.dockerignore
 docker-compose.yml
 
 # Data files
