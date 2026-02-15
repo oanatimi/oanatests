@@ -10,7 +10,9 @@ COPY prisma ./prisma/
 # Install dependencies
 RUN npm ci
 
-# Generate Prisma client
+# Generate Prisma client with dummy DATABASE_URL for build time
+# The actual DATABASE_URL will be provided at runtime by Railway
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"
 RUN npx prisma generate
 
 # Copy source code
@@ -31,7 +33,9 @@ COPY prisma ./prisma/
 # Install production dependencies only
 RUN npm ci --omit=dev
 
-# Generate Prisma client
+# Generate Prisma client with dummy DATABASE_URL for build time
+# The actual DATABASE_URL will be provided at runtime by Railway
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"
 RUN npx prisma generate
 
 # Copy built files from builder
