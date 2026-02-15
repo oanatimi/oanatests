@@ -35,12 +35,10 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./
 
-# Expose port
-EXPOSE 3000
+# Note: Railway assigns PORT dynamically at runtime
+# Next.js automatically uses PORT env var when set
+# Railway handles healthchecks via healthcheckPath in railway.json
+# Docker HEALTHCHECK is not needed and can interfere with Railway
 
-# Health check using Node.js (wget not available in Alpine by default)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
-
-# Start command
+# Start command - Next.js automatically uses PORT env var
 CMD ["npm", "start"]
