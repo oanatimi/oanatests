@@ -44,7 +44,7 @@
         "default": "production"
       },
       "CORS_ORIGIN": {
-        "description": "Frontend URL for CORS",
+        "description": "Frontend URL for CORS (e.g., https://your-frontend.railway.app)",
         "required": true
       },
       "TRACCAR_SMS_URL": {
