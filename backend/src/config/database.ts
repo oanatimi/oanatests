@@ -5,6 +5,8 @@ import { config } from './index';
 // Create a connection pool
 const pool = new Pool({
   connectionString: config.database.url,
+  connectionTimeoutMillis: 10000,
+  query_timeout: 30000,
 });
 
 // Log pool events

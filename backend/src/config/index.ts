@@ -79,6 +79,14 @@ function getTraccarSmsUrl(): string {
   return url;
 }
 
+// Parse CORS_ORIGIN to support multiple comma-separated origins
+function parseCorsOrigin(origin: string): string | string[] {
+  if (origin.includes(',')) {
+    return origin.split(',').map(o => o.trim()).filter(Boolean);
+  }
+  return origin;
+}
+
 export const config = {
   port: getEnvNumber('PORT', 3001),
   nodeEnv: getEnvVar('NODE_ENV', 'development'),
@@ -127,7 +135,7 @@ export const config = {
   },
   
   cors: {
-    origin: getEnvVar('CORS_ORIGIN', 'http://localhost:3000'),
+    origin: parseCorsOrigin(getEnvVar('CORS_ORIGIN', 'http://localhost:3000')),
   },
   
   cloudflare: {
