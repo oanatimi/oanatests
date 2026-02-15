@@ -55,7 +55,7 @@ DB_USER=${{Postgres.PGUSER}}
 DB_PASSWORD=${{Postgres.PGPASSWORD}}
 
 # Server Configuration
-PORT=3001
+# NOTE: Do NOT set PORT here — Railway assigns it dynamically
 NODE_ENV=production
 
 # CORS - SET THIS TO YOUR FRONTEND URL (see Step 4 for frontend URL)
@@ -193,6 +193,17 @@ Now that you have your frontend URL, you need to update the backend CORS configu
 3. For frontend: `NEXT_PUBLIC_*` variables MUST be set before build
    - Update the variable
    - Manually trigger a redeploy
+
+### Issue 5: Service shows "Online" but all routes return 502
+
+**Problem:** The server is running but not listening on the correct host/port. Railway's proxy cannot reach it.
+
+**Solution:**
+1. **Do NOT hardcode PORT** — Railway assigns it dynamically via the `PORT` env var
+2. **Bind to `0.0.0.0`** — not `localhost` or `127.0.0.1`
+   - Backend: `app.listen(PORT, '0.0.0.0', ...)` (already configured)
+   - Frontend: `HOSTNAME=0.0.0.0` env var is set in the Dockerfile
+3. **Do NOT set `PORT=3001`** in Railway variables — let Railway assign it
 
 ## 📝 Environment Variables Reference
 

@@ -43,5 +43,8 @@ COPY --from=builder /app/next.config.js ./
 # - Railway: Uses healthcheckPath in railway.json; Docker HEALTHCHECK not needed
 # - Local Docker: Configure health checks externally (docker-compose or orchestrator)
 
-# Start command - Next.js automatically uses PORT env var
+# Bind to 0.0.0.0 so Railway/Docker proxy can reach the server (required for container networking)
+ENV HOSTNAME=0.0.0.0
+
+# Start command - Next.js uses PORT and HOSTNAME env vars
 CMD ["npm", "start"]
