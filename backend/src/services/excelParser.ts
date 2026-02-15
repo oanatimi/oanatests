@@ -345,15 +345,32 @@ export async function importClientsFromExcel(filePaths: string[]): Promise<{
   imported: number;
   skipped: number;
   errors: string[];
+  logs: string[];
 }> {
   let imported = 0;
   let skipped = 0;
   const errors: string[] = [];
+  const logs: string[] = [];
+  
+  // Helper to add log entry and also log to winston
+  const addLog = (message: string, level: 'info' | 'warn' | 'error' = 'info') => {
+    const timestamp = new Date().toISOString();
+    logs.push(`[${timestamp}] ${message}`);
+    if (level === 'error') {
+      logger.error(message);
+    } else if (level === 'warn') {
+      logger.warn(message);
+    } else {
+      logger.info(message);
+    }
+  };
   
   for (const filePath of filePaths) {
     try {
-      logger.info(`Processing file: ${filePath}`);
+      addLog(`Processing file: ${filePath}`);
       const clients = await parseExcelFile(filePath);
+      
+      addLog(`Found ${clients.length} clients to process from ${filePath}`);
       
       for (const clientData of clients) {
         try {
@@ -421,19 +438,20 @@ export async function importClientsFromExcel(filePaths: string[]): Promise<{
           imported++;
         } catch (err) {
           const errorMsg = `Error importing client ${clientData.companyName}: ${err instanceof Error ? err.message : String(err)}`;
-          logger.error(errorMsg);
+          addLog(errorMsg, 'error');
           errors.push(errorMsg);
         }
       }
+      addLog(`Completed processing ${filePath}: ${imported} imported so far`);
     } catch (err) {
       const errorMsg = `Error processing file ${filePath}: ${err instanceof Error ? err.message : String(err)}`;
-      logger.error(errorMsg);
+      addLog(errorMsg, 'error');
       errors.push(errorMsg);
     }
   }
   
-  logger.info(`Import complete: ${imported} imported, ${skipped} skipped, ${errors.length} errors`);
-  return { imported, skipped, errors };
+  addLog(`Import complete: ${imported} imported, ${skipped} skipped, ${errors.length} errors`);
+  return { imported, skipped, errors, logs };
 }
 
 export async function getExcelFilesFromDirectory(directory: string): Promise<string[]> {
