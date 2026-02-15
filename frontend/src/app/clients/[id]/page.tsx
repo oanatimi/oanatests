@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { clientsApi, messagesApi, Message } from '@/lib/api';
+import { clientsApi, messagesApi, Message, MessageTemplate } from '@/lib/api';
 import { 
   ArrowLeft, 
   Phone, 
@@ -16,7 +16,8 @@ import {
   AlertCircle,
   User,
   Globe,
-  Calendar
+  Calendar,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -45,6 +46,7 @@ export default function ClientDetailPage() {
   const queryClient = useQueryClient();
   const [messageContent, setMessageContent] = useState('');
   const [showSendForm, setShowSendForm] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
 
   const clientId = params.id as string;
 
@@ -54,12 +56,28 @@ export default function ClientDetailPage() {
     enabled: !!clientId,
   });
 
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => messagesApi.getTemplates(),
+  });
+
+  const templates = templatesData?.data || [];
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplate(templateId);
+    const template = templates.find((t: MessageTemplate) => t.id === templateId);
+    if (template) {
+      setMessageContent(template.content);
+    }
+  };
+
   const sendMessageMutation = useMutation({
     mutationFn: ({ clientId, content }: { clientId: string; content: string }) =>
       messagesApi.send(clientId, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['client', clientId] });
       setMessageContent('');
+      setSelectedTemplate('');
       setShowSendForm(false);
       alert('Message queued successfully!');
     },
@@ -282,20 +300,48 @@ export default function ClientDetailPage() {
             {/* Send Message Form */}
             {showSendForm && (
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                {/* Template Selection */}
+                {templates.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <FileText size={14} className="inline mr-1" />
+                      Use Template (optional)
+                    </label>
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => handleTemplateSelect(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">Write custom message...</option>
+                      {templates.map((t: MessageTemplate) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Message Content
+                </label>
                 <textarea
                   value={messageContent}
                   onChange={(e) => setMessageContent(e.target.value)}
-                  placeholder="Enter your message..."
+                  placeholder="Enter your message or select a template above..."
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <div className="flex items-center justify-between mt-3">
                   <p className="text-sm text-gray-500">
                     {messageContent.length} / 480 characters
+                    {selectedTemplate && <span className="ml-2 text-primary-600">(Editable)</span>}
                   </p>
                   <div className="space-x-2">
                     <button
-                      onClick={() => setShowSendForm(false)}
+                      onClick={() => {
+                        setShowSendForm(false);
+                        setSelectedTemplate('');
+                        setMessageContent('');
+                      }}
                       className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
                     >
                       Cancel

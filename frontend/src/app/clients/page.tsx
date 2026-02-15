@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { clientsApi, messagesApi, Client } from '@/lib/api';
+import { clientsApi, messagesApi, Client, MessageTemplate } from '@/lib/api';
 import { 
   Search, 
   Filter, 
@@ -16,7 +16,8 @@ import {
   CheckSquare,
   Square,
   Send,
-  Tag
+  Tag,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -29,6 +30,7 @@ export default function ClientsPage() {
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [showBulkMessage, setShowBulkMessage] = useState(false);
   const [bulkMessageContent, setBulkMessageContent] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
 
   const { data: clientsData, isLoading } = useQuery({
     queryKey: ['clients', { page, search, county, category }],
@@ -45,6 +47,13 @@ export default function ClientsPage() {
     queryFn: () => clientsApi.getCategories(),
   });
 
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => messagesApi.getTemplates(),
+  });
+
+  const templates = templatesData?.data || [];
+
   const bulkMessageMutation = useMutation({
     mutationFn: ({ clientIds, content }: { clientIds: string[]; content: string }) =>
       messagesApi.sendBulk(clientIds, content),
@@ -53,12 +62,21 @@ export default function ClientsPage() {
       setSelectedClients([]);
       setShowBulkMessage(false);
       setBulkMessageContent('');
+      setSelectedTemplate('');
       alert('Messages queued successfully!');
     },
     onError: (error: Error) => {
       alert(`Error: ${error.message}`);
     },
   });
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplate(templateId);
+    const template = templates.find((t: MessageTemplate) => t.id === templateId);
+    if (template) {
+      setBulkMessageContent(template.content);
+    }
+  };
 
   const clients = clientsData?.data?.data || [];
   const pagination = clientsData?.data?.pagination;
@@ -174,19 +192,48 @@ export default function ClientsPage() {
               <p className="text-gray-600 mb-4">
                 Sending to {selectedClients.length} clients
               </p>
+              
+              {/* Template Selection */}
+              {templates.length > 0 && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FileText size={16} className="inline mr-1" />
+                    Use Template (optional)
+                  </label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => handleTemplateSelect(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Write custom message...</option>
+                    {templates.map((t: MessageTemplate) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Message Content
+              </label>
               <textarea
                 value={bulkMessageContent}
                 onChange={(e) => setBulkMessageContent(e.target.value)}
-                placeholder="Enter your message..."
+                placeholder="Enter your message or select a template above..."
                 rows={4}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
               <p className="text-sm text-gray-500 mt-2">
                 {bulkMessageContent.length} / 480 characters
+                {selectedTemplate && <span className="ml-2 text-primary-600">(You can edit the template content)</span>}
               </p>
               <div className="flex justify-end space-x-4 mt-6">
                 <button
-                  onClick={() => setShowBulkMessage(false)}
+                  onClick={() => {
+                    setShowBulkMessage(false);
+                    setSelectedTemplate('');
+                    setBulkMessageContent('');
+                  }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-900"
                 >
                   Cancel
