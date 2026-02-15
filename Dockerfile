@@ -5,15 +5,11 @@ WORKDIR /app
 
 # Copy backend package files
 COPY backend/package*.json ./
-COPY backend/prisma ./prisma/
 
 # Install dependencies
 RUN npm ci
 
-# Generate Prisma client
-RUN npx prisma generate
-
-# Copy backend source code
+# Copy backend source code (includes db directory for migrations)
 COPY backend/ .
 
 # Build TypeScript
@@ -26,16 +22,15 @@ WORKDIR /app
 
 # Copy backend package files
 COPY backend/package*.json ./
-COPY backend/prisma ./prisma/
 
 # Install production dependencies only
 RUN npm ci --omit=dev
 
-# Generate Prisma client
-RUN npx prisma generate
-
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
+
+# Copy database migration files
+COPY --from=builder /app/db ./db
 
 # Expose port
 EXPOSE 3001

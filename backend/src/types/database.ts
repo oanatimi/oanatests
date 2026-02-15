@@ -1,4 +1,4 @@
-// Database type definitions (replacing Prisma types)
+// Database type definitions
 
 export enum MessageStatus {
   PENDING = 'PENDING',
