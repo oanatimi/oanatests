@@ -139,7 +139,7 @@ export default function ClientsPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Search clients..."
+              placeholder="Search by name, CUI, CAEN, phone, email..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -306,6 +306,18 @@ export default function ClientsPage() {
                       )}
                     </div>
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
+                      {client.cui && (
+                        <div className="flex items-center">
+                          <Building size={14} className="mr-1 text-gray-400" />
+                          CUI: {client.cui}
+                        </div>
+                      )}
+                      {client.caenCode && (
+                        <div className="flex items-center">
+                          <Tag size={14} className="mr-1 text-gray-400" />
+                          CAEN: {client.caenCode}
+                        </div>
+                      )}
                       {client.phonePrimary && (
                         <div className="flex items-center">
                           <Phone size={14} className="mr-1 text-gray-400" />

@@ -32,6 +32,8 @@ router.get('/', async (req: Request, res: Response) => {
     if (search) {
       where.OR = [
         { companyName: { contains: search, mode: 'insensitive' } },
+        { cui: { contains: search, mode: 'insensitive' } },
+        { caenCode: { contains: search, mode: 'insensitive' } },
         { phonePrimary: { contains: search } },
         { emailPrimary: { contains: search, mode: 'insensitive' } },
         { administrator: { contains: search, mode: 'insensitive' } },

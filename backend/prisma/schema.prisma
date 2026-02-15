@@ -62,6 +62,8 @@ model Client {
   @@index([phonePrimary])
   @@index([county])
   @@index([category])
+  @@index([cui])
+  @@index([caenCode])
 }
 
 model Message {
