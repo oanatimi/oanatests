@@ -29,12 +29,15 @@ RUN npm ci --omit=dev
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy database migration script
+# Copy database migration files
 COPY --from=builder /app/db ./db
+
+# Copy startup script
+COPY --from=builder /app/scripts ./scripts
+RUN chmod +x ./scripts/start.sh
 
 # Note: Railway assigns PORT dynamically at runtime
 # EXPOSE is not needed for Railway deployment
 
-# Start command - run migrations first, then start the server
-# Migrations are idempotent (uses IF NOT EXISTS) so safe to run every time
-CMD ["sh", "-c", "npm run db:migrate && npm start"]
+# Start command using startup script (similar to frontend approach)
+CMD ["./scripts/start.sh"]
