@@ -9,9 +9,17 @@
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "envVars": {
-      "DATABASE_URL": {
-        "description": "PostgreSQL JDBC connection string (auto-linked from Railway Postgres)",
-        "default": "jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}?sslmode=require"
+      "DB_HOST": {
+        "description": "PostgreSQL host (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGHOST}}"
+      },
+      "DB_PORT": {
+        "description": "PostgreSQL port (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGPORT}}"
+      },
+      "DB_NAME": {
+        "description": "PostgreSQL database name (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGDATABASE}}"
       },
       "DB_USER": {
         "description": "PostgreSQL user (auto-linked from Railway Postgres)",
