@@ -35,6 +35,31 @@ function getEnvBoolean(key: string, defaultValue: boolean): boolean {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+// Helper function to build database URL from individual variables or use DATABASE_URL
+function getDatabaseUrl(): string {
+  // If DATABASE_URL is provided, use it directly
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    return databaseUrl;
+  }
+  
+  // Otherwise, construct from individual variables (Railway Postgres references)
+  const host = process.env.DB_HOST;
+  const port = process.env.DB_PORT || '5432';
+  const name = process.env.DB_NAME;
+  const user = process.env.DB_USER;
+  const password = process.env.DB_PASSWORD;
+  
+  if (host && name && user && password) {
+    // URL encode username and password to handle special characters
+    const encodedUser = encodeURIComponent(user);
+    const encodedPassword = encodeURIComponent(password);
+    return `postgresql://${encodedUser}:${encodedPassword}@${host}:${port}/${name}`;
+  }
+  
+  return '';
+}
+
 // Helper function to get SMS URL with validation
 // Note: Uses console.warn instead of logger to avoid circular dependency (logger depends on config)
 function getTraccarSmsUrl(): string {
@@ -59,7 +84,13 @@ export const config = {
   nodeEnv: getEnvVar('NODE_ENV', 'development'),
   
   database: {
-    url: getEnvVar('DATABASE_URL', ''),
+    url: getDatabaseUrl(),
+    // Individual connection parameters (can be used directly if needed)
+    host: getEnvVar('DB_HOST', ''),
+    port: getEnvNumber('DB_PORT', 5432),
+    name: getEnvVar('DB_NAME', ''),
+    user: getEnvVar('DB_USER', ''),
+    password: getEnvVar('DB_PASSWORD', ''),
   },
   
   traccarSms: {
