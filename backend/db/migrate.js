@@ -25,7 +25,10 @@ function getDatabaseUrl() {
   const password = process.env.DB_PASSWORD;
   
   if (host && name && user && password) {
-    return `postgresql://${user}:${password}@${host}:${port}/${name}`;
+    // URL encode username and password to handle special characters
+    const encodedUser = encodeURIComponent(user);
+    const encodedPassword = encodeURIComponent(password);
+    return `postgresql://${encodedUser}:${encodedPassword}@${host}:${port}/${name}`;
   }
   
   return null;
