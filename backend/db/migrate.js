@@ -59,23 +59,66 @@ async function migrate() {
     process.exit(1);
   }
   
+  console.log('');
+  console.log('=== DATABASE MIGRATION ===');
   console.log('Starting database migration...');
+  // Log connection info (without password)
+  try {
+    const url = new URL(databaseUrl);
+    console.log(`Connecting to: ${url.hostname}:${url.port || 5432}/${url.pathname.slice(1)}`);
+  } catch {
+    console.log('Connecting to database...');
+  }
   
   const pool = new Pool({
     connectionString: databaseUrl,
   });
   
   try {
+    // Test connection first
+    console.log('Testing database connection...');
+    const connectionTest = await pool.query('SELECT NOW() as server_time');
+    console.log(`Connected successfully. Server time: ${connectionTest.rows[0].server_time}`);
+    
     // Read the schema file
     const schemaPath = path.join(__dirname, 'schema.sql');
+    console.log(`Reading schema from: ${schemaPath}`);
     const schema = fs.readFileSync(schemaPath, 'utf8');
     
     // Execute the schema
+    console.log('Executing database schema...');
     await pool.query(schema);
+    
+    // Verify tables were created
+    const tablesResult = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `);
+    const tables = tablesResult.rows.map(r => r.table_name);
+    console.log(`Tables in database: ${tables.length > 0 ? tables.join(', ') : 'none'}`);
     
     console.log('Database migration completed successfully!');
   } catch (error) {
-    console.error('Database migration failed:', error.message);
+    console.error('');
+    console.error('=== DATABASE MIGRATION FAILED ===');
+    console.error(`Error: ${error.message}`);
+    if (error.code) {
+      console.error(`PostgreSQL Error Code: ${error.code}`);
+    }
+    if (error.detail) {
+      console.error(`Detail: ${error.detail}`);
+    }
+    if (error.hint) {
+      console.error(`Hint: ${error.hint}`);
+    }
+    if (error.position) {
+      console.error(`Position: ${error.position}`);
+    }
+    console.error('=================================');
+    console.error('');
     process.exit(1);
   } finally {
     await pool.end();
