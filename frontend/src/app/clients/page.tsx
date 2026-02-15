@@ -225,7 +225,7 @@ export default function ClientsPage() {
               />
               <p className="text-sm text-gray-500 mt-2">
                 {bulkMessageContent.length} / 480 characters
-                {selectedTemplate && <span className="ml-2 text-primary-600">(You can edit the template content)</span>}
+                {selectedTemplate && <span className="ml-2 text-primary-600">(Editable)</span>}
               </p>
               <div className="flex justify-end space-x-4 mt-6">
                 <button
