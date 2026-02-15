@@ -126,8 +126,11 @@ A full-stack application for managing clients and sending SMS messages via Tracc
 ### Docker Compose
 
 ```bash
-# Start all services
+# Start all services (basic configuration)
 docker-compose up -d
+
+# Start all services with full configuration (includes all environment variables)
+docker-compose -f docker-compose.full.yml up -d
 
 # View logs
 docker-compose logs -f

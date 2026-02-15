@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    container_name: db
+    environment:
+      POSTGRES_DB: client_management
+      POSTGRES_USER: service
+      POSTGRES_PASSWORD: service
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U service -d client_management"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [appnet]
+
+  backend:
+    container_name: backend
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://service:service@db:5432/client_management?schema=public
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "3001:3001"
+    networks: [appnet]
+
+  frontend:
+    container_name: frontend
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks: [appnet]
+
+volumes:
+  dbdata: {}
+
+networks:
+  appnet:
+    driver: bridge
