@@ -63,6 +63,9 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'foaie1': 'General',
 };
 
+// Sheets to exclude from import
+const EXCLUDED_SHEETS = ['aaa', 'balanta primita', 'balanta primita '];
+
 // Column mapping for "Baza de date clienti 2023.xlsx"
 const COLUMN_MAPPING_2023: Record<string, keyof ClientData> = {
   'Numele Companiei': 'companyName',
@@ -197,7 +200,7 @@ function getCategoryFromSheetName(sheetName: string): string {
       return category;
     }
   }
-  return 'Altele'; // Default category
+  return 'General'; // Default category for unmatched sheets
 }
 
 async function parseExcelFile(filePath: string): Promise<ClientData[]> {
@@ -225,8 +228,8 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
     
     // Skip empty or irrelevant sheets
     if (worksheet.rowCount < 2) continue;
-    if (sheetName.toLowerCase().includes('aaa')) continue;
-    if (sheetName.toLowerCase().trim() === 'balanta primita') continue;
+    const normalizedSheetName = sheetName.toLowerCase().trim();
+    if (EXCLUDED_SHEETS.some(excluded => normalizedSheetName.includes(excluded))) continue;
     
     // Determine category from sheet name
     const category = getCategoryFromSheetName(sheetName);

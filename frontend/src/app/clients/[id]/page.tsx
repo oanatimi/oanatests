@@ -232,7 +232,7 @@ export default function ClientDetailPage() {
           {/* Observations/Notes */}
           {client.observations && (
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Observații / Notes</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Observations / Notes</h2>
               <div className="prose prose-sm max-w-none">
                 <p className="text-gray-700 whitespace-pre-wrap">{client.observations}</p>
               </div>
