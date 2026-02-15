@@ -91,7 +91,8 @@ async function initializeServices(): Promise<void> {
   }
 }
 
-const server = app.listen(PORT, () => {
+// Bind to 0.0.0.0 for Docker/Railway compatibility (required for container networking)
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${config.nodeEnv}`);
   

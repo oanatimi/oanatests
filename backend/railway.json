@@ -35,10 +35,6 @@
         "description": "PostgreSQL password (auto-linked from Railway Postgres)",
         "default": "${{Postgres.PGPASSWORD}}"
       },
-      "PORT": {
-        "description": "Server port",
-        "default": "3001"
-      },
       "NODE_ENV": {
         "description": "Node environment",
         "default": "production"
