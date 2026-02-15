@@ -159,6 +159,26 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Whitelist of allowed update fields for Client (prevents SQL injection)
+const ALLOWED_UPDATE_FIELDS = [
+  'companyName', 'status', 'category', 'cui', 'registrationNumber',
+  'caenCode', 'caenSection', 'caenDivision', 'caenGroup',
+  'county', 'locality', 'address', 'postalCode',
+  'revenue', 'netProfit', 'vatPayer',
+  'revenue2023', 'revenue2022', 'profit2023', 'profit2022',
+  'receivables2023', 'equity2023', 'employees', 'foundingYear',
+  'phoneVerified', 'phonePrimary', 'phoneSecondary', 'phoneContact', 'phoneMarketing', 'phoneWebsite',
+  'emailPrimary', 'emailSecondary', 'emailMarketing', 'emailWebsite', 'emailContact',
+  'websites', 'administrator', 'contactPerson', 'contactDate', 'dealId', 'observations',
+  'sourceFile', 'sourceSheet'
+] as const;
+
+type AllowedUpdateField = typeof ALLOWED_UPDATE_FIELDS[number];
+
+function isAllowedUpdateField(field: string): field is AllowedUpdateField {
+  return ALLOWED_UPDATE_FIELDS.includes(field as AllowedUpdateField);
+}
+
 // Update client
 router.put('/:id', async (req: Request, res: Response) => {
   try {
@@ -169,21 +189,22 @@ router.put('/:id', async (req: Request, res: Response) => {
     delete updateData.messages;
     delete updateData._count;
     delete updateData.messageCount;
+    delete updateData.importedAt;
     
-    // Build UPDATE query dynamically
-    const fields = Object.keys(updateData);
-    if (fields.length === 0) {
+    // Filter to only allowed fields (prevents SQL injection)
+    const allowedFields = Object.keys(updateData).filter(isAllowedUpdateField);
+    if (allowedFields.length === 0) {
       res.json({ success: true, data: await queryOne<Client>('SELECT * FROM "Client" WHERE id = $1', [req.params.id]), message: 'No changes made.' });
       return;
     }
     
-    const setClause = fields.map((field, index) => `"${field}" = $${index + 1}`).join(', ');
-    const values = fields.map(field => updateData[field]);
+    const setClause = allowedFields.map((field, index) => `"${field}" = $${index + 1}`).join(', ');
+    const values = allowedFields.map(field => updateData[field]);
     
     const updateQuery = `
       UPDATE "Client" 
       SET ${setClause}, "updatedAt" = NOW() 
-      WHERE id = $${fields.length + 1} 
+      WHERE id = $${allowedFields.length + 1} 
       RETURNING *
     `;
     

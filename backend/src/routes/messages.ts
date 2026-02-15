@@ -189,11 +189,10 @@ router.post('/bulk', async (req: Request, res: Response) => {
       return;
     }
     
-    // Get clients with phone numbers
-    const placeholders = clientIds.map((_, i) => `$${i + 1}`).join(', ');
+    // Get clients with phone numbers using ANY with array parameter (safe from SQL injection)
     const clients = await query<Client>(
-      `SELECT id, "phonePrimary", "phoneContact", "companyName" FROM "Client" WHERE id IN (${placeholders})`,
-      clientIds
+      `SELECT id, "phonePrimary", "phoneContact", "companyName" FROM "Client" WHERE id = ANY($1::text[])`,
+      [clientIds]
     );
     
     const messages = clients

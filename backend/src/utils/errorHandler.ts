@@ -135,10 +135,10 @@ export function handleError(
       errorCode = 'DUPLICATE';
       userMessage = ERROR_MESSAGES['23505'];
     }
-    // PostgreSQL "foreign_key_violation" errors (record not found)
+    // PostgreSQL "foreign_key_violation" errors (referencing non-existent data)
     else if (pgError.code === '23503') {
-      statusCode = 404;
-      errorCode = 'NOT_FOUND';
+      statusCode = 400;
+      errorCode = 'INVALID_REFERENCE';
       userMessage = ERROR_MESSAGES['23503'];
     }
     // PostgreSQL "not_null_violation" errors

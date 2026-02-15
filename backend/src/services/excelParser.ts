@@ -379,16 +379,44 @@ export async function importClientsFromExcel(filePaths: string[]): Promise<{
             continue;
           }
           
-          // Build INSERT query dynamically
-          const fields = Object.keys(clientData) as (keyof ClientData)[];
-          const columns = fields.map(f => `"${f}"`).join(', ');
-          const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
-          const values = fields.map(f => clientData[f]);
-          
+          // Insert with fixed column list (prevents SQL injection)
+          // The column list matches the ClientData interface
           await execute(
-            `INSERT INTO "Client" (id, ${columns}, "importedAt", "createdAt", "updatedAt")
-             VALUES (gen_random_uuid(), ${placeholders}, NOW(), NOW(), NOW())`,
-            values
+            `INSERT INTO "Client" (
+              id, "companyName", status, category, cui, "registrationNumber",
+              "caenCode", "caenSection", "caenDivision", "caenGroup",
+              county, locality, address, "postalCode",
+              revenue, "netProfit", "vatPayer",
+              "revenue2023", "revenue2022", "profit2023", "profit2022",
+              "receivables2023", "equity2023", employees, "foundingYear",
+              "phoneVerified", "phonePrimary", "phoneSecondary", "phoneContact", "phoneMarketing", "phoneWebsite",
+              "emailPrimary", "emailSecondary", "emailMarketing", "emailWebsite", "emailContact",
+              websites, administrator, "contactPerson", "contactDate", "dealId", observations,
+              "sourceFile", "sourceSheet", "importedAt", "createdAt", "updatedAt"
+            ) VALUES (
+              gen_random_uuid(), $1, $2, $3, $4, $5,
+              $6, $7, $8, $9,
+              $10, $11, $12, $13,
+              $14, $15, $16,
+              $17, $18, $19, $20,
+              $21, $22, $23, $24,
+              $25, $26, $27, $28, $29, $30,
+              $31, $32, $33, $34, $35,
+              $36, $37, $38, $39, $40, $41,
+              $42, $43, NOW(), NOW(), NOW()
+            )`,
+            [
+              clientData.companyName, clientData.status, clientData.category, clientData.cui, clientData.registrationNumber,
+              clientData.caenCode, clientData.caenSection, clientData.caenDivision, clientData.caenGroup,
+              clientData.county, clientData.locality, clientData.address, clientData.postalCode,
+              clientData.revenue, clientData.netProfit, clientData.vatPayer,
+              clientData.revenue2023, clientData.revenue2022, clientData.profit2023, clientData.profit2022,
+              clientData.receivables2023, clientData.equity2023, clientData.employees, clientData.foundingYear,
+              clientData.phoneVerified, clientData.phonePrimary, clientData.phoneSecondary, clientData.phoneContact, clientData.phoneMarketing, clientData.phoneWebsite,
+              clientData.emailPrimary, clientData.emailSecondary, clientData.emailMarketing, clientData.emailWebsite, clientData.emailContact,
+              clientData.websites, clientData.administrator, clientData.contactPerson, clientData.contactDate, clientData.dealId, clientData.observations,
+              clientData.sourceFile, clientData.sourceSheet
+            ]
           );
           imported++;
         } catch (err) {
