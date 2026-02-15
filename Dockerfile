@@ -32,8 +32,8 @@ COPY --from=builder /app/dist ./dist
 # Copy database migration files
 COPY --from=builder /app/db ./db
 
-# Expose port
-EXPOSE 3001
+# Note: Railway assigns PORT dynamically at runtime
+# EXPOSE is not needed for Railway deployment
 
 # Health check using Node.js (wget not available in Alpine by default)
 # Uses PORT environment variable (Railway assigns dynamic port)
