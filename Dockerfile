@@ -1,43 +1,31 @@
 # Backend Dockerfile for Railway deployment from monorepo root
-FROM node:20-alpine AS builder
+# Uses Java/Quarkus backend
 
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# Copy backend package files
-COPY backend/package*.json ./
+# Copy backend pom.xml for dependency caching
+COPY backend/pom.xml .
 
-# Install dependencies
-RUN npm ci
+# Download dependencies (cached layer)
+RUN mvn -q -DskipTests dependency:go-offline
 
-# Copy backend source code (includes db directory for migrations)
-COPY backend/ .
+# Copy backend source code
+COPY backend/src ./src
 
-# Build TypeScript
-RUN npm run build
+# Build the application
+RUN mvn clean package -DskipTests
 
 # Production stage
-FROM node:20-alpine AS production
+FROM eclipse-temurin:21-jre
+WORKDIR /work
 
-WORKDIR /app
-
-# Copy backend package files
-COPY backend/package*.json ./
-
-# Install production dependencies only
-RUN npm ci --omit=dev
-
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
-
-# Copy database migration files
-COPY --from=builder /app/db ./db
-
-# Copy startup script
-COPY --from=builder /app/scripts ./scripts
-RUN chmod +x ./scripts/start.sh
+# Copy the entire quarkus-app directory structure
+COPY --from=build /app/target/quarkus-app/ /work/
 
 # Note: Railway assigns PORT dynamically at runtime
-# EXPOSE is not needed for Railway deployment
+# Quarkus will use the PORT env var via ${PORT:8080} in application.properties
+EXPOSE 8080
 
-# Start command using startup script (similar to frontend approach)
-CMD ["./scripts/start.sh"]
+# Start the application
+ENTRYPOINT ["java","-jar","/work/quarkus-run.jar"]
