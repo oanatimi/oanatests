@@ -64,8 +64,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome to your Client Management System</p>
+          <h1 className="text-2xl font-bold text-gray-900 hidden md:block">Dashboard</h1>
+          <p className="text-gray-600 mt-1 hidden md:block">Welcome to your Client Management System</p>
         </div>
         <div className="mt-4 sm:mt-0">
           <Link

@@ -56,7 +56,7 @@ export default function MessagesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+          <h1 className="text-2xl font-bold text-gray-900 hidden md:block">Messages</h1>
           <p className="text-gray-600 mt-1">
             {pagination?.total || 0} total messages
           </p>

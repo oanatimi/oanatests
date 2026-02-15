@@ -116,7 +116,7 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+          <h1 className="text-2xl font-bold text-gray-900 hidden md:block">Clients</h1>
           <p className="text-gray-600 mt-1">
             {pagination?.total || 0} total clients
           </p>
@@ -158,7 +158,7 @@ export default function ClientsPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">All Categories</option>
-              {categories?.data?.map((c: string) => (
+              {(categories?.data?.data || categories?.data || []).map((c: string) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -173,7 +173,7 @@ export default function ClientsPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">All Counties</option>
-              {counties?.data?.map((c: string) => (
+              {(counties?.data?.data || counties?.data || []).map((c: string) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>

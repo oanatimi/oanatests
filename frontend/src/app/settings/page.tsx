@@ -31,7 +31,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 hidden md:block">Settings</h1>
         <p className="text-gray-600 mt-1">System configuration and queue management</p>
       </div>
 

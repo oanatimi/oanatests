@@ -79,7 +79,7 @@ export default function TemplatesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Message Templates</h1>
+          <h1 className="text-2xl font-bold text-gray-900 hidden md:block">Message Templates</h1>
           <p className="text-gray-600 mt-1">Create reusable message templates</p>
         </div>
         <button
