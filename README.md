@@ -217,12 +217,32 @@ This repository includes Railway configuration files at the root for automatic d
 ### Automatic Deploy (Recommended)
 
 1. Create a new project on [Railway](https://railway.app)
-2. Add a PostgreSQL database
-3. Connect your GitHub repository
-4. Railway will automatically detect the `railway.json` and `Dockerfile` at the root
-5. Add the following environment variables:
-   - All backend environment variables listed above
-   - `DATABASE_URL` (automatically provided by Railway PostgreSQL)
+
+2. **Add a PostgreSQL database**:
+   - In your Railway project, click "+ New" (or right-click the canvas)
+   - Select "Database" → "PostgreSQL"
+   - Wait for it to provision
+
+3. **Connect your GitHub repository**:
+   - Click "+ New" → "GitHub Repo"
+   - Select this repository
+   - Railway will automatically detect the `railway.json` and `Dockerfile` at the root
+
+4. **⚠️ IMPORTANT: Link the DATABASE_URL variable**:
+   - Click on your backend service (the GitHub repo deployment)
+   - Go to the "Variables" tab
+   - Click "Add Reference" or the "+" button
+   - Select the `DATABASE_URL` from your PostgreSQL service
+   - This links your PostgreSQL database connection string to your backend
+   
+   > **Note**: If you skip this step, you will get the error: `ERROR: DATABASE_URL environment variable is not set`
+
+5. **Add required environment variables**:
+   - `CORS_ORIGIN` - Your frontend URL (e.g., `https://your-frontend.railway.app`)
+   - `TRACCAR_SMS_URL` - Your Traccar SMS Gateway URL
+   - `TRACCAR_SMS_DEVICE_ID` - Your device ID from Traccar SMS Gateway app
+   - `TRACCAR_API_TOKEN` - Your Traccar API token
+   - Other optional variables listed above
 
 The root-level `railway.json` and `Dockerfile` are configured to build and deploy the backend service from the monorepo structure.
 
@@ -245,6 +265,24 @@ The root-level `railway.json` and `Dockerfile` are configured to build and deplo
    ```
 
 **Note:** You can also deploy by setting the root directory to `/backend` in Railway dashboard settings and using the backend-specific configuration files, but the root-level configuration is recommended for automatic deployments.
+
+### Troubleshooting Railway Deployment
+
+#### Error: "DATABASE_URL environment variable is not set"
+
+This error occurs when the PostgreSQL database connection is not linked to your backend service.
+
+**Solution:**
+1. Make sure you have added a PostgreSQL database to your Railway project
+2. Go to your backend service → Variables tab
+3. Click "Add Reference" and select `DATABASE_URL` from your PostgreSQL service
+4. Redeploy your service
+
+#### Error: "Connection refused" or database connection errors
+
+- Verify that your PostgreSQL service is running
+- Check that the DATABASE_URL reference is correctly linked
+- In Railway, click on your PostgreSQL service to see its status
 
 ## 📱 Traccar SMS Gateway Setup
 
