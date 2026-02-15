@@ -8,6 +8,87 @@
     "startCommand": "npm run db:migrate && npm start",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
+    "restartPolicyMaxRetries": 10,
+    "envVars": {
+      "DATABASE_URL": {
+        "description": "PostgreSQL connection string (provided by Railway)",
+        "required": true
+      },
+      "PORT": {
+        "description": "Server port",
+        "default": "3001"
+      },
+      "NODE_ENV": {
+        "description": "Node environment",
+        "default": "production"
+      },
+      "CORS_ORIGIN": {
+        "description": "Frontend URL for CORS",
+        "required": true
+      },
+      "TRACCAR_SMS_URL": {
+        "description": "Traccar SMS Gateway URL",
+        "required": true
+      },
+      "TRACCAR_SMS_DEVICE_ID": {
+        "description": "Device ID registered in Traccar",
+        "required": true
+      },
+      "TRACCAR_API_TOKEN": {
+        "description": "API token for Traccar authentication",
+        "required": true
+      },
+      "CLOUDFLARE_TUNNEL_URL": {
+        "description": "Cloudflare tunnel URL (optional)"
+      },
+      "SMS_RATE_LIMIT_PER_MINUTE": {
+        "description": "Max SMS per minute",
+        "default": "30"
+      },
+      "SMS_RATE_LIMIT_PER_HOUR": {
+        "description": "Max SMS per hour",
+        "default": "500"
+      },
+      "SMS_MAX_RETRIES": {
+        "description": "Max retry attempts",
+        "default": "5"
+      },
+      "SMS_MAX_PER_RECIPIENT_PER_DAY": {
+        "description": "Max SMS per recipient per day",
+        "default": "3"
+      },
+      "SMS_MAX_PER_RECIPIENT_PER_WEEK": {
+        "description": "Max SMS per recipient per week",
+        "default": "10"
+      },
+      "SMS_RECIPIENT_COOLDOWN_HOURS": {
+        "description": "Cooldown hours between messages",
+        "default": "4"
+      },
+      "SMS_ALLOWED_START_HOUR": {
+        "description": "Start hour for SMS (24h)",
+        "default": "9"
+      },
+      "SMS_ALLOWED_END_HOUR": {
+        "description": "End hour for SMS (24h)",
+        "default": "20"
+      },
+      "SMS_TIMEZONE": {
+        "description": "Timezone for SMS scheduling",
+        "default": "Europe/Bucharest"
+      },
+      "SMS_SENDER_NAME": {
+        "description": "Company name for SMS",
+        "default": "YourCompany"
+      },
+      "SMS_DEFAULT_COUNTRY_CODE": {
+        "description": "Default country code",
+        "default": "+40"
+      },
+      "LOG_LEVEL": {
+        "description": "Log level",
+        "default": "info"
+      }
+    }
   }
 }
