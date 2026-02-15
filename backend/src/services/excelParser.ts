@@ -6,6 +6,7 @@ import prisma from '../config/database';
 interface ClientData {
   companyName: string;
   status?: string;
+  category?: string;
   cui?: string;
   registrationNumber?: string;
   caenCode?: string;
@@ -40,10 +41,27 @@ interface ClientData {
   emailContact?: string;
   websites?: string;
   administrator?: string;
+  contactPerson?: string;
+  contactDate?: Date;
+  dealId?: string;
   observations?: string;
   sourceFile?: string;
   sourceSheet?: string;
 }
+
+// Sheet name to category mapping
+const CATEGORY_MAPPING: Record<string, string> = {
+  'agri': 'Agricultură',
+  'agricultura': 'Agricultură',
+  'constructii': 'Construcții',
+  'constructie': 'Construcții',
+  'comert lemn': 'Comerț Lemn',
+  'lemn': 'Comerț Lemn',
+  'clienti contactati': 'Clienți Contactați',
+  'clienti interesati': 'Clienți Interesați',
+  'tot': 'General',
+  'foaie1': 'General',
+};
 
 // Column mapping for "Baza de date clienti 2023.xlsx"
 const COLUMN_MAPPING_2023: Record<string, keyof ClientData> = {
@@ -83,6 +101,7 @@ const COLUMN_MAPPING_2023: Record<string, keyof ClientData> = {
   'Email Contact': 'emailContact',
   'Websites': 'websites',
   'Administrator': 'administrator',
+  'Observatii': 'observations',
 };
 
 // Column mapping for "baza date lorand.xlsx"
@@ -91,6 +110,13 @@ const COLUMN_MAPPING_LORAND: Record<string, keyof ClientData> = {
   'Judet': 'county',
   'Nr de telefon': 'phonePrimary',
   'Observatii': 'observations',
+  'Data': 'contactDate',
+  'ID Deal': 'dealId',
+};
+
+// Index-based column mapping for lorand file (column 4 is contact person)
+const LORAND_SPECIAL_COLUMNS: Record<number, keyof ClientData> = {
+  4: 'contactPerson',
 };
 
 function parseNumber(value: unknown): number | undefined {
@@ -108,8 +134,47 @@ function parseBoolean(value: unknown): boolean | undefined {
 
 function cleanString(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
+  
+  // Handle ExcelJS rich text objects
+  if (typeof value === 'object' && value !== null) {
+    // Rich text has a 'richText' property with array of text segments
+    if ('richText' in value && Array.isArray((value as { richText: unknown[] }).richText)) {
+      const richText = (value as { richText: Array<{ text?: string }> }).richText;
+      const str = richText.map(rt => rt.text || '').join('').trim();
+      return str === '' ? undefined : str;
+    }
+    // Handle other object types - try to extract text property
+    if ('text' in value && typeof (value as { text: unknown }).text === 'string') {
+      const str = (value as { text: string }).text.trim();
+      return str === '' ? undefined : str;
+    }
+    // Handle result/formula objects
+    if ('result' in value) {
+      return cleanString((value as { result: unknown }).result);
+    }
+  }
+  
   const str = String(value).trim();
   return str === '' ? undefined : str;
+}
+
+function parseDate(value: unknown): Date | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  if (value instanceof Date) return value;
+  
+  // Try to parse string dates like "01.02.2022." or "01.02.2022"
+  const strValue = String(value).replace(/\.$/, '').trim();
+  
+  // Try DD.MM.YYYY format
+  const ddmmyyyy = strValue.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (ddmmyyyy) {
+    const [, day, month, year] = ddmmyyyy;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+  
+  // Try standard date parsing
+  const date = new Date(strValue);
+  return isNaN(date.getTime()) ? undefined : date;
 }
 
 function normalizePhoneNumber(phone: string | undefined): string | undefined {
@@ -125,6 +190,16 @@ function normalizePhoneNumber(phone: string | undefined): string | undefined {
   return normalized;
 }
 
+function getCategoryFromSheetName(sheetName: string): string {
+  const normalizedName = sheetName.toLowerCase().trim();
+  for (const [key, category] of Object.entries(CATEGORY_MAPPING)) {
+    if (normalizedName.includes(key)) {
+      return category;
+    }
+  }
+  return 'Altele'; // Default category
+}
+
 async function parseExcelFile(filePath: string): Promise<ClientData[]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
@@ -134,12 +209,27 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
   const isLorandFile = fileName.toLowerCase().includes('lorand');
   const columnMapping = isLorandFile ? COLUMN_MAPPING_LORAND : COLUMN_MAPPING_2023;
   
-  for (const worksheet of workbook.worksheets) {
+  // Sort worksheets: process specialized sheets first, then general sheets like "Tot"
+  // This ensures proper categorization when duplicates exist
+  const sortedWorksheets = [...workbook.worksheets].sort((a, b) => {
+    const generalSheets = ['tot', 'foaie1', 'general'];
+    const aIsGeneral = generalSheets.includes(a.name.toLowerCase().trim());
+    const bIsGeneral = generalSheets.includes(b.name.toLowerCase().trim());
+    if (aIsGeneral && !bIsGeneral) return 1;  // Push general sheets to end
+    if (!aIsGeneral && bIsGeneral) return -1; // Specialized sheets first
+    return 0;
+  });
+  
+  for (const worksheet of sortedWorksheets) {
     const sheetName = worksheet.name;
     
     // Skip empty or irrelevant sheets
     if (worksheet.rowCount < 2) continue;
     if (sheetName.toLowerCase().includes('aaa')) continue;
+    if (sheetName.toLowerCase().trim() === 'balanta primita') continue;
+    
+    // Determine category from sheet name
+    const category = getCategoryFromSheetName(sheetName);
     
     // Get header row
     const headerRow = worksheet.getRow(1);
@@ -150,6 +240,10 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
       if (header && columnMapping[header]) {
         columnIndices[columnMapping[header]] = colNumber;
       }
+      // Handle special index-based columns for Lorand file
+      if (isLorandFile && LORAND_SPECIAL_COLUMNS[colNumber]) {
+        columnIndices[LORAND_SPECIAL_COLUMNS[colNumber]] = colNumber;
+      }
     });
     
     // Check if we have essential columns
@@ -159,6 +253,7 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
     }
     
     // Parse data rows
+    let sheetClientCount = 0;
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
       
@@ -172,8 +267,13 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
         
       if (!companyNameCell && !phoneCell) continue;
       
+      // Generate company name from phone if not available
+      const companyName = cleanString(companyNameCell) || 
+        (phoneCell ? `Client ${cleanString(phoneCell)}` : 'Unknown Company');
+      
       const client: ClientData = {
-        companyName: cleanString(companyNameCell) || 'Unknown Company',
+        companyName: companyName,
+        category: category,
         sourceFile: fileName,
         sourceSheet: sheetName,
       };
@@ -181,6 +281,9 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
       // Map all columns
       for (const [field, colIndex] of Object.entries(columnIndices)) {
         const cellValue = row.getCell(colIndex).value;
+        
+        // Skip companyName since we already set it
+        if (field === 'companyName') continue;
         
         switch (field) {
           case 'revenue':
@@ -208,15 +311,23 @@ async function parseExcelFile(filePath: string): Promise<ClientData[]> {
           case 'phoneVerified':
             (client as unknown as Record<string, string | undefined>)[field] = normalizePhoneNumber(cleanString(cellValue));
             break;
+          case 'contactDate':
+            client.contactDate = parseDate(cellValue);
+            break;
+          case 'observations':
+            // Preserve full observations text
+            client.observations = cleanString(cellValue);
+            break;
           default:
             (client as unknown as Record<string, string | undefined>)[field] = cleanString(cellValue);
         }
       }
       
       clients.push(client);
+      sheetClientCount++;
     }
     
-    logger.info(`Parsed ${clients.length} clients from sheet "${sheetName}" in file "${fileName}"`);
+    logger.info(`Parsed ${sheetClientCount} clients from sheet "${sheetName}" (category: ${category}) in file "${fileName}"`);
   }
   
   return clients;

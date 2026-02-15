@@ -108,7 +108,14 @@ export default function ClientDetailPage() {
           <ArrowLeft size={24} />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{client.companyName}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">{client.companyName}</h1>
+            {client.category && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {client.category}
+              </span>
+            )}
+          </div>
           <p className="text-gray-600">{client.status || 'Active'}</p>
         </div>
       </div>
@@ -221,6 +228,43 @@ export default function ClientDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Observations/Notes */}
+          {client.observations && (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Observații / Notes</h2>
+              <div className="prose prose-sm max-w-none">
+                <p className="text-gray-700 whitespace-pre-wrap">{client.observations}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Contact Person & Deal Info */}
+          {(client.contactPerson || client.dealId || client.contactDate) && (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact History</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {client.contactPerson && (
+                  <div>
+                    <p className="text-sm text-gray-500">Contact Person</p>
+                    <p className="font-medium">{client.contactPerson}</p>
+                  </div>
+                )}
+                {client.contactDate && (
+                  <div>
+                    <p className="text-sm text-gray-500">Contact Date</p>
+                    <p className="font-medium">{format(new Date(client.contactDate), 'MMM d, yyyy')}</p>
+                  </div>
+                )}
+                {client.dealId && (
+                  <div>
+                    <p className="text-sm text-gray-500">Deal ID</p>
+                    <p className="font-medium">{client.dealId}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Message History */}
           <div className="bg-white rounded-xl shadow-sm p-6">

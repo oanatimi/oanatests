@@ -15,7 +15,8 @@ import {
   MapPin,
   CheckSquare,
   Square,
-  Send
+  Send,
+  Tag
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -24,18 +25,24 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [county, setCounty] = useState('');
+  const [category, setCategory] = useState('');
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [showBulkMessage, setShowBulkMessage] = useState(false);
   const [bulkMessageContent, setBulkMessageContent] = useState('');
 
   const { data: clientsData, isLoading } = useQuery({
-    queryKey: ['clients', { page, search, county }],
-    queryFn: () => clientsApi.getAll({ page, limit: 20, search, county }),
+    queryKey: ['clients', { page, search, county, category }],
+    queryFn: () => clientsApi.getAll({ page, limit: 20, search, county, category }),
   });
 
   const { data: counties } = useQuery({
     queryKey: ['counties'],
     queryFn: () => clientsApi.getCounties(),
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => clientsApi.getCategories(),
   });
 
   const bulkMessageMutation = useMutation({
@@ -122,6 +129,21 @@ export default function ClientsPage() {
               }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
+          </div>
+          <div className="sm:w-48">
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">All Categories</option>
+              {categories?.data?.map((c: string) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
           <div className="sm:w-48">
             <select
@@ -223,12 +245,19 @@ export default function ClientsPage() {
                     )}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <Link
-                      href={`/clients/${client.id}`}
-                      className="text-lg font-medium text-gray-900 hover:text-primary-600"
-                    >
-                      {client.companyName}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/clients/${client.id}`}
+                        className="text-lg font-medium text-gray-900 hover:text-primary-600"
+                      >
+                        {client.companyName}
+                      </Link>
+                      {client.category && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {client.category}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
                       {client.phonePrimary && (
                         <div className="flex items-center">
@@ -255,6 +284,11 @@ export default function ClientsPage() {
                         </div>
                       )}
                     </div>
+                    {client.observations && (
+                      <p className="mt-2 text-sm text-gray-500 line-clamp-2">
+                        {client.observations}
+                      </p>
+                    )}
                   </div>
                   <Link
                     href={`/clients/${client.id}`}

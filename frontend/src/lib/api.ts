@@ -14,6 +14,7 @@ export interface Client {
   id: string;
   companyName: string;
   status?: string;
+  category?: string;
   cui?: string;
   registrationNumber?: string;
   caenCode?: string;
@@ -46,6 +47,9 @@ export interface Client {
   emailContact?: string;
   websites?: string;
   administrator?: string;
+  contactPerson?: string;
+  contactDate?: string;
+  dealId?: string;
   employees?: number;
   foundingYear?: number;
   observations?: string;
@@ -118,6 +122,7 @@ export const clientsApi = {
     limit?: number;
     search?: string;
     county?: string;
+    category?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) => api.get<PaginatedResponse<Client>>('/clients', { params }),
@@ -129,6 +134,8 @@ export const clientsApi = {
   delete: (id: string) => api.delete(`/clients/${id}`),
   
   getCounties: () => api.get<string[]>('/clients/counties'),
+  
+  getCategories: () => api.get<string[]>('/clients/categories'),
 };
 
 export const messagesApi = {

@@ -11,6 +11,7 @@ router.get('/', async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const search = req.query.search as string;
     const county = req.query.county as string;
+    const category = req.query.category as string;
     const sortBy = req.query.sortBy as string || 'companyName';
     const sortOrder = (req.query.sortOrder as string || 'asc') === 'desc' ? 'desc' : 'asc';
     
@@ -22,11 +23,16 @@ router.get('/', async (req: Request, res: Response) => {
         { phonePrimary: { contains: search } },
         { emailPrimary: { contains: search, mode: 'insensitive' } },
         { administrator: { contains: search, mode: 'insensitive' } },
+        { observations: { contains: search, mode: 'insensitive' } },
       ];
     }
     
     if (county) {
       where.county = county;
+    }
+    
+    if (category) {
+      where.category = category;
     }
     
     const [clients, total] = await Promise.all([
@@ -73,6 +79,23 @@ router.get('/counties', async (_req: Request, res: Response) => {
   } catch (error) {
     logger.error(`Error fetching counties: ${error instanceof Error ? error.message : String(error)}`);
     res.status(500).json({ error: 'Failed to fetch counties' });
+  }
+});
+
+// Get distinct categories for filtering
+router.get('/categories', async (_req: Request, res: Response) => {
+  try {
+    const categories = await prisma.client.findMany({
+      select: { category: true },
+      distinct: ['category'],
+      where: { category: { not: null } },
+      orderBy: { category: 'asc' },
+    });
+    
+    res.json(categories.map(c => c.category).filter(Boolean));
+  } catch (error) {
+    logger.error(`Error fetching categories: ${error instanceof Error ? error.message : String(error)}`);
+    res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 

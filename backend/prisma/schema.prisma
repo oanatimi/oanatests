@@ -11,6 +11,7 @@ model Client {
   id                String    @id @default(uuid())
   companyName       String
   status            String?
+  category          String?   // Category: Construcții, Agricultură, Comerț lemn, etc.
   cui               String?
   registrationNumber String?
   caenCode          String?
@@ -45,7 +46,10 @@ model Client {
   emailContact      String?
   websites          String?
   administrator     String?
-  observations      String?
+  contactPerson     String?   // Contact person name
+  contactDate       DateTime? // Date of contact
+  dealId            String?   // Deal ID from CRM
+  observations      String?   @db.Text // Full observations/notes
   sourceFile        String?
   sourceSheet       String?
   importedAt        DateTime  @default(now())
@@ -57,6 +61,7 @@ model Client {
   @@index([companyName])
   @@index([phonePrimary])
   @@index([county])
+  @@index([category])
 }
 
 model Message {
