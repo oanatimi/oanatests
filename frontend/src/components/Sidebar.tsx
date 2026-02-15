@@ -29,13 +29,17 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile menu button */}
-      <button
-        className="fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg md:hidden"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
+      {/* Mobile header bar */}
+      <div className="fixed top-0 left-0 right-0 h-14 bg-white shadow-sm z-30 flex items-center px-4 md:hidden">
+        <button
+          className="p-2 rounded-lg hover:bg-gray-100"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label="Toggle menu"
+        >
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+        <h1 className="ml-3 text-lg font-semibold text-gray-800">Client Manager</h1>
+      </div>
 
       {/* Overlay for mobile */}
       {isOpen && (

@@ -17,9 +17,10 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans">
         <Providers>
-          <div className="flex min-h-screen">
+          <div className="flex min-h-screen bg-gray-50">
             <Sidebar />
-            <main className="flex-1 p-4 md:p-8 md:ml-64">
+            {/* Add pt-16 on mobile to account for hamburger menu, and pl-4 for spacing */}
+            <main className="flex-1 pt-16 px-4 pb-4 md:pt-8 md:px-8 md:pb-8 md:ml-64">
               {children}
             </main>
           </div>
