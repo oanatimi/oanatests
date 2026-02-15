@@ -212,147 +212,45 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 
 ## 🚂 Railway Deployment
 
-This repository includes Railway configuration files at the root for automatic deployment. The `DATABASE_URL` is automatically prefilled to reference your Railway PostgreSQL service.
+**⚠️ IMPORTANT: For complete Railway setup instructions, see [RAILWAY_SETUP.md](RAILWAY_SETUP.md)**
 
-### Automatic Deploy (Recommended)
+This repository includes Railway configuration files for automatic deployment with proper environment variable handling.
 
-1. Create a new project on [Railway](https://railway.app)
+### Quick Start
 
-2. **Add a PostgreSQL database** (must be named "Postgres"):
-   - In your Railway project, click "+ New" (or right-click the canvas)
-   - Select "Database" → "PostgreSQL"
-   - Wait for it to provision
-   - **Important**: Keep the default service name "Postgres" for auto-linking to work
+1. **Create Railway project** and add PostgreSQL database (must be named "Postgres")
+2. **Deploy backend** from GitHub repo (Railway will use root `railway.json`)
+3. **Configure backend environment variables** - See [RAILWAY_SETUP.md](RAILWAY_SETUP.md) for complete list
+4. **Deploy frontend** with root directory set to `/frontend`
+5. **Configure frontend environment variable**: `NEXT_PUBLIC_API_URL=https://your-backend.railway.app/api`
+6. **Update CORS**: Set backend's `CORS_ORIGIN` to your frontend URL
 
-3. **Connect your GitHub repository**:
-   - Click "+ New" → "GitHub Repo"
-   - Select this repository
-   - Railway will automatically detect the `railway.json` and `Dockerfile` at the root
-   - The `DATABASE_URL` will be **automatically prefilled** with `${{Postgres.DATABASE_URL}}`
+### Critical Notes
 
-4. **Add required environment variables** (see detailed instructions below):
-   - Go to your backend service → **Variables** tab
-   - Click **"+ New Variable"** or use the **RAW Editor** to bulk add
-   - Add these required variables:
-     - `CORS_ORIGIN` - Your frontend URL (e.g., `https://your-frontend.railway.app`)
-     - `TRACCAR_SMS_URL` - Your Traccar SMS Gateway URL
-     - `TRACCAR_SMS_DEVICE_ID` - Your device ID from Traccar SMS Gateway app
-     - `TRACCAR_API_TOKEN` - Your Traccar API token
-   - Optional variables with defaults are listed in [Environment Variables](#-environment-variables)
+- ⚠️ **Frontend requires `NEXT_PUBLIC_API_URL` at BUILD TIME** - If you change this variable, you must redeploy/rebuild
+- ⚠️ **Environment variables in `railway.json` are documentation only** - They do NOT auto-populate; you must add them manually in Railway dashboard
+- ⚠️ **Backend requires CORS_ORIGIN, TRACCAR_SMS_URL, TRACCAR_SMS_DEVICE_ID, and TRACCAR_API_TOKEN** to function
 
-### How to Add Environment Variables in Railway
+For detailed step-by-step instructions, troubleshooting, and common issues, see **[RAILWAY_SETUP.md](RAILWAY_SETUP.md)**.
 
-> **Important:** The `envVars` defined in `railway.json` are for **documentation and template definitions only**. They do **NOT automatically populate** in the Railway dashboard. You must add variables manually using one of these methods:
+### Backend Required Variables
 
-#### Method 1: Add Variables One by One (Dashboard UI)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection (auto-linked) | `${{Postgres.DATABASE_URL}}` |
+| `CORS_ORIGIN` | Frontend URL for CORS | `https://your-frontend.railway.app` |
+| `TRACCAR_SMS_URL` | Traccar SMS Gateway URL | `https://traccar.example.com` |
+| `TRACCAR_SMS_DEVICE_ID` | Device ID from Traccar | `device_123` |
+| `TRACCAR_API_TOKEN` | Traccar API token | `token_abc123` |
 
-1. Go to your **Railway project** → click on your **backend service**
-2. Click the **"Variables"** tab
-3. Click **"+ New Variable"**
-4. Enter the variable name (e.g., `CORS_ORIGIN`) and value (e.g., `https://your-frontend.railway.app`)
-5. Repeat for each required variable
-6. Click **"Deploy"** to apply changes
+### Frontend Required Variables
 
-#### Method 2: Bulk Add Using RAW Editor (Recommended)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API URL (BUILD TIME) | `https://your-backend.railway.app/api` |
 
-1. Go to your **Railway project** → click on your **backend service**
-2. Click the **"Variables"** tab
-3. Click **"RAW Editor"** (top right)
-4. Paste your variables in `.env` format:
-   ```env
-   CORS_ORIGIN=https://your-frontend.railway.app
-   TRACCAR_SMS_URL=https://your-traccar-url.com
-   TRACCAR_SMS_DEVICE_ID=your_device_id
-   TRACCAR_API_TOKEN=your_api_token
-   SMS_SENDER_NAME=YourCompanyName
-   ```
-5. Click **"Update Variables"**
-6. Railway will automatically trigger a new deployment
+See [RAILWAY_SETUP.md](RAILWAY_SETUP.md) for complete variable list, setup instructions, and troubleshooting.
 
-#### Method 3: Link PostgreSQL Variables Automatically
-
-For database variables, Railway can auto-link them from your PostgreSQL service:
-
-1. Go to your backend service → **Variables** tab
-2. Click **"+ Add Reference"** (or **"+ New Variable"**)
-3. Select **"Reference a Variable"** → choose your PostgreSQL service
-4. Select `DATABASE_URL` from the list
-5. This creates a reference like `${{Postgres.DATABASE_URL}}` that auto-updates
-
-#### Required vs Optional Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | ✅ | Auto-linked from Postgres | PostgreSQL connection string |
-| `CORS_ORIGIN` | ✅ | - | Frontend URL for CORS |
-| `TRACCAR_SMS_URL` | ✅ | - | Traccar SMS Gateway URL |
-| `TRACCAR_SMS_DEVICE_ID` | ✅ | - | Device ID from Traccar app |
-| `TRACCAR_API_TOKEN` | ✅ | - | API token for Traccar |
-| `PORT` | ❌ | `3001` | Server port |
-| `NODE_ENV` | ❌ | `production` | Node environment |
-| `SMS_RATE_LIMIT_PER_MINUTE` | ❌ | `30` | Max SMS per minute |
-| `SMS_SENDER_NAME` | ❌ | `YourCompany` | Company name in SMS |
-| `LOG_LEVEL` | ❌ | `info` | Log level |
-
-See the full list in [Environment Variables](#-environment-variables) section.
-
-The root-level `railway.json` and `Dockerfile` are configured to build and deploy the backend service from the monorepo structure.
-
-### Manual Setup (Alternative)
-
-1. **Create a Railway project**
-   ```bash
-   railway init
-   ```
-
-2. **Add PostgreSQL**
-   ```bash
-   railway add
-   # Select PostgreSQL
-   ```
-
-3. **Deploy**
-   ```bash
-   railway up
-   ```
-
-**Note:** You can also deploy by setting the root directory to `/backend` in Railway dashboard settings and using the backend-specific configuration files, but the root-level configuration is recommended for automatic deployments.
-
-### Troubleshooting Railway Deployment
-
-#### Error: "DATABASE_URL environment variable is not set"
-
-This error occurs when the PostgreSQL database connection is not linked to your backend service.
-
-**Solution:**
-1. Make sure you have added a PostgreSQL database to your Railway project
-2. Verify the PostgreSQL service is named "Postgres" (default name) for auto-linking to work
-3. If using a different name, update the `DATABASE_URL` in your backend service Variables tab:
-   - Click "Add Reference" and select `DATABASE_URL` from your PostgreSQL service
-   - Or manually set it to `${{YourPostgresServiceName.DATABASE_URL}}`
-4. Redeploy your service
-
-#### Error: "Connection refused" or database connection errors
-
-- Verify that your PostgreSQL service is running
-- Check that the DATABASE_URL reference is correctly linked
-- In Railway, click on your PostgreSQL service to see its status
-
-#### Variables from railway.json not appearing in Railway Dashboard
-
-**This is expected behavior.** The `envVars` section in `railway.json` is for **documentation and template definitions only** — it does NOT automatically create variables in your Railway dashboard.
-
-**Why?**
-- `railway.json` defines what variables your app needs (descriptions, defaults, required status)
-- Railway uses this for validation and when creating templates, but you must still add the actual values
-- This is a security feature: sensitive values should not be committed to git
-
-**Solution:**
-1. Go to your backend service in Railway dashboard
-2. Click the **"Variables"** tab
-3. Add each required variable manually (see [How to Add Environment Variables](#how-to-add-environment-variables-in-railway))
-4. Use the **RAW Editor** to bulk-paste variables from your `.env` file
-5. For database variables, use **"Add Reference"** to link from your PostgreSQL service
 
 ## 📱 Traccar SMS Gateway Setup
 
