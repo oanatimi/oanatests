@@ -43,9 +43,13 @@ public class ImportResource {
     @Path("/clients")
     @Transactional
     public Response importClients(ImportRequest request) {
+        LOG.infof("Received import request: %s", request != null ? 
+            String.format("directory=%s", request.directory) : "null request body");
+        
         try {
             // Determine base directory from config
             String baseDir = excelConfig.dataDirectory();
+            LOG.debugf("Using base directory from config: %s", baseDir);
 
             // Safely resolve and validate requested directory
             java.nio.file.Path basePath = Paths.get(baseDir).toAbsolutePath().normalize();
@@ -56,6 +60,8 @@ public class ImportResource {
 
                 // Prevent directory traversal
                 if (!requestedPath.startsWith(basePath)) {
+                    LOG.warnf("Directory traversal attempt detected. Requested: %s, Base: %s", 
+                        requestedPath, basePath);
                     return Response.status(Response.Status.BAD_REQUEST)
                         .entity(ApiResponse.error("The specified directory path is invalid or not allowed."))
                         .build();
@@ -64,17 +70,25 @@ public class ImportResource {
                 dataPath = requestedPath;
             }
 
+            LOG.debugf("Searching for Excel files in: %s", dataPath);
+            
             // Get Excel files from directory
             List<String> excelFiles = getExcelFilesFromDirectory(dataPath.toFile());
+            LOG.infof("Found %d Excel files in directory %s", excelFiles.size(), dataPath);
 
             if (excelFiles.isEmpty()) {
+                LOG.warnf("No Excel files found in directory: %s (exists=%s, isDir=%s)", 
+                    dataPath, dataPath.toFile().exists(), dataPath.toFile().isDirectory());
                 return Response.status(Response.Status.BAD_REQUEST)
                     .entity(ApiResponse.error("No Excel files (.xlsx) were found in the specified directory. Please check the path and try again."))
                     .build();
             }
 
             // Import clients
+            LOG.infof("Starting import from %d Excel files", excelFiles.size());
             ExcelImportService.ImportResult result = excelImportService.importClientsFromExcel(excelFiles);
+            LOG.infof("Import completed: %d imported, %d skipped, %d errors", 
+                result.imported, result.skipped, result.errors.size());
 
             ImportResultDto dto = new ImportResultDto();
             dto.filesProcessed = excelFiles.size();
@@ -94,7 +108,7 @@ public class ImportResource {
 
             return Response.ok(ApiResponse.success(dto, message.toString())).build();
         } catch (Exception e) {
-            LOG.errorf("Error importing clients: %s", e.getMessage());
+            LOG.errorf(e, "Error importing clients: %s", e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(ApiResponse.error("Error importing clients"))
                 .build();
