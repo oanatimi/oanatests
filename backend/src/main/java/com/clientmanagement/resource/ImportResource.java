@@ -14,11 +14,18 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.jboss.resteasy.reactive.RestForm;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * REST resource for Excel import operations.
@@ -114,6 +121,132 @@ public class ImportResource {
             LOG.errorf(e, "Error importing clients: %s", e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(ApiResponse.error("Error importing clients"))
+                .build();
+        }
+    }
+
+    /**
+     * Import clients from uploaded Excel files.
+     * Supports file uploads via multipart/form-data for mobile and desktop browsers.
+     */
+    @POST
+    @Path("/clients/upload")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Transactional
+    public Response importClientsFromUpload(@RestForm("files") List<FileUpload> files) {
+        LOG.infof("Received file upload import request with %d files", files != null ? files.size() : 0);
+        
+        try {
+            if (files == null || files.isEmpty()) {
+                LOG.warn("No files provided in upload request");
+                return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error("No files were uploaded. Please select at least one Excel file (.xlsx)."))
+                    .build();
+            }
+
+            // Validate and process uploaded files
+            List<ExcelImportService.UploadedFile> uploadedFiles = new ArrayList<>();
+            List<String> invalidFiles = new ArrayList<>();
+            
+            // Allowed Excel MIME types and extensions
+            Set<String> allowedMimeTypes = Set.of(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-excel",
+                "application/octet-stream"
+            );
+            Set<String> allowedExtensions = Set.of(".xlsx", ".xls");
+            
+            for (FileUpload file : files) {
+                String fileName = file.fileName();
+                String contentType = file.contentType();
+                long fileSize = file.size();
+                
+                LOG.debugf("Processing uploaded file: name=%s, type=%s, size=%d", 
+                    sanitizeForLog(fileName), contentType, fileSize);
+                
+                // Validate file extension
+                String lowerFileName = fileName.toLowerCase();
+                boolean hasValidExtension = allowedExtensions.stream()
+                    .anyMatch(lowerFileName::endsWith);
+                
+                if (!hasValidExtension) {
+                    invalidFiles.add(fileName + " (invalid extension, must be .xlsx or .xls)");
+                    continue;
+                }
+                
+                // Validate MIME type (allow octet-stream for mobile browsers)
+                if (contentType != null && !allowedMimeTypes.contains(contentType)) {
+                    LOG.warnf("Unexpected MIME type for %s: %s", sanitizeForLog(fileName), contentType);
+                }
+                
+                // Validate file size (max 50MB)
+                if (fileSize > 50 * 1024 * 1024) {
+                    invalidFiles.add(fileName + " (file too large, max 50MB)");
+                    continue;
+                }
+                
+                // Read file content
+                try (InputStream inputStream = Files.newInputStream(file.filePath())) {
+                    // We need to read the content into memory since the file might be deleted after request
+                    byte[] content = inputStream.readAllBytes();
+                    uploadedFiles.add(new ExcelImportService.UploadedFile(
+                        new java.io.ByteArrayInputStream(content),
+                        fileName
+                    ));
+                }
+            }
+            
+            if (!invalidFiles.isEmpty()) {
+                String errorMessage = "Invalid files: " + String.join(", ", invalidFiles);
+                if (uploadedFiles.isEmpty()) {
+                    return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(ApiResponse.error(errorMessage))
+                        .build();
+                }
+                LOG.warnf("Some files were invalid: %s", errorMessage);
+            }
+            
+            if (uploadedFiles.isEmpty()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error("No valid Excel files were uploaded."))
+                    .build();
+            }
+            
+            // Import clients from uploaded files
+            LOG.infof("Starting import from %d uploaded Excel files", uploadedFiles.size());
+            ExcelImportService.ImportResult result = excelImportService.importClientsFromUploadedFiles(uploadedFiles);
+            LOG.infof("Upload import completed: %d imported, %d skipped, %d errors", 
+                result.imported, result.skipped, result.errors.size());
+            
+            ImportResultDto dto = new ImportResultDto();
+            dto.filesProcessed = uploadedFiles.size();
+            dto.imported = result.imported;
+            dto.skipped = result.skipped;
+            dto.errors = result.errors;
+            dto.logs = result.logs;
+            
+            // Add invalid file warnings to errors if any
+            if (!invalidFiles.isEmpty()) {
+                for (String invalidFile : invalidFiles) {
+                    dto.errors.add(0, "Skipped: " + invalidFile);
+                }
+            }
+            
+            StringBuilder message = new StringBuilder();
+            message.append(String.format("Import completed! %d client(s) imported from %d file(s).", 
+                result.imported, uploadedFiles.size()));
+            if (result.skipped > 0) {
+                message.append(String.format(" %d duplicate(s) skipped.", result.skipped));
+            }
+            if (!result.errors.isEmpty()) {
+                message.append(String.format(" %d error(s) encountered.", result.errors.size()));
+            }
+            
+            return Response.ok(ApiResponse.success(dto, message.toString())).build();
+        } catch (Exception e) {
+            LOG.errorf(e, "Error importing clients from uploaded files: %s", e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                .entity(ApiResponse.error("Error importing clients from uploaded files"))
                 .build();
         }
     }

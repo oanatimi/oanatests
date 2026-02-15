@@ -11,6 +11,7 @@ import org.jboss.logging.Logger;
 
 import java.io.FileInputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -156,6 +157,89 @@ public class ExcelImportService {
         return result;
     }
 
+    /**
+     * Import clients from uploaded Excel files (InputStream).
+     */
+    @Transactional
+    public ImportResult importClientsFromUploadedFiles(List<UploadedFile> uploadedFiles) {
+        ImportResult result = new ImportResult();
+
+        for (UploadedFile uploadedFile : uploadedFiles) {
+            try {
+                addLog(result, String.format("Processing uploaded file: %s", uploadedFile.fileName));
+                List<Client> clients = parseExcelFromInputStream(uploadedFile.inputStream, uploadedFile.fileName);
+                addLog(result, String.format("Found %d clients to process from %s", clients.size(), uploadedFile.fileName));
+
+                for (Client client : clients) {
+                    try {
+                        // Check for duplicates
+                        Client existingClient = null;
+
+                        if (client.phonePrimary != null && !client.phonePrimary.isBlank()) {
+                            existingClient = Client.find("companyName = ?1 AND phonePrimary = ?2",
+                                client.companyName, client.phonePrimary).firstResult();
+                        }
+
+                        if (existingClient == null && client.cui != null && !client.cui.isBlank()) {
+                            existingClient = Client.find("cui", client.cui).firstResult();
+                        }
+
+                        if (existingClient != null) {
+                            result.skipped++;
+                            continue;
+                        }
+
+                        client.persist();
+                        result.imported++;
+                    } catch (Exception e) {
+                        String errorMsg = String.format("Error importing client %s: %s",
+                            client.companyName, e.getMessage());
+                        addLog(result, errorMsg, "error");
+                        result.errors.add(errorMsg);
+                    }
+                }
+
+                addLog(result, String.format("Completed processing %s: %d imported so far", uploadedFile.fileName, result.imported));
+            } catch (Exception e) {
+                String errorMsg = String.format("Error processing file %s: %s", uploadedFile.fileName, e.getMessage());
+                addLog(result, errorMsg, "error");
+                result.errors.add(errorMsg);
+            }
+        }
+
+        addLog(result, String.format("Import complete: %d imported, %d skipped, %d errors",
+            result.imported, result.skipped, result.errors.size()));
+        return result;
+    }
+
+    /**
+     * DTO class to hold uploaded file data.
+     */
+    public static class UploadedFile {
+        public InputStream inputStream;
+        public String fileName;
+
+        public UploadedFile(InputStream inputStream, String fileName) {
+            this.inputStream = inputStream;
+            this.fileName = fileName;
+        }
+    }
+
+    /**
+     * Parse Excel file from InputStream.
+     */
+    private List<Client> parseExcelFromInputStream(InputStream inputStream, String fileName) throws Exception {
+        List<Client> clients = new ArrayList<>();
+        boolean isLorandFile = fileName.toLowerCase().contains("lorand");
+        Map<String, String> columnMapping = isLorandFile ? COLUMN_MAPPING_LORAND : COLUMN_MAPPING_2023;
+
+        try (Workbook workbook = new XSSFWorkbook(inputStream)) {
+            parseWorkbook(workbook, fileName, columnMapping, isLorandFile, clients);
+        }
+
+        return clients;
+    }
+
     private List<Client> parseExcelFile(String filePath) throws Exception {
         List<Client> clients = new ArrayList<>();
         String fileName = new File(filePath).getName();
@@ -164,138 +248,145 @@ public class ExcelImportService {
 
         try (FileInputStream fis = new FileInputStream(filePath);
              Workbook workbook = new XSSFWorkbook(fis)) {
-
-            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
-                Sheet sheet = workbook.getSheetAt(sheetIndex);
-                String sheetName = sheet.getSheetName();
-
-                // Skip empty or excluded sheets
-                if (sheet.getLastRowNum() < 1) continue;
-                String normalizedSheetName = sheetName.toLowerCase().trim();
-                if (EXCLUDED_SHEETS.stream().anyMatch(normalizedSheetName::contains)) continue;
-
-                // Determine category from sheet name
-                String category = getCategoryFromSheetName(sheetName);
-
-                // Get header row
-                Row headerRow = sheet.getRow(0);
-                if (headerRow == null) continue;
-
-                Map<String, Integer> columnIndices = new HashMap<>();
-                for (int colIndex = 0; colIndex < headerRow.getLastCellNum(); colIndex++) {
-                    Cell cell = headerRow.getCell(colIndex);
-                    if (cell != null) {
-                        String header = getCellStringValue(cell);
-                        if (header != null && columnMapping.containsKey(header)) {
-                            columnIndices.put(columnMapping.get(header), colIndex);
-                        }
-                    }
-                    // Handle special index-based columns for Lorand file
-                    if (isLorandFile && colIndex == 4) {
-                        columnIndices.put("contactPerson", colIndex);
-                    }
-                }
-
-                // Check if we have essential columns
-                if (!columnIndices.containsKey("companyName") && !columnIndices.containsKey("phonePrimary")) {
-                    LOG.warnf("Skipping sheet \"%s\" - no essential columns found", sheetName);
-                    continue;
-                }
-
-                // Parse data rows
-                int sheetClientCount = 0;
-                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-                    Row row = sheet.getRow(rowIndex);
-                    if (row == null) continue;
-
-                    // Skip empty rows
-                    String companyName = columnIndices.containsKey("companyName") ?
-                        getCellStringValue(row.getCell(columnIndices.get("companyName"))) : null;
-                    String phone = columnIndices.containsKey("phonePrimary") ?
-                        getCellStringValue(row.getCell(columnIndices.get("phonePrimary"))) : null;
-
-                    if ((companyName == null || companyName.isBlank()) && 
-                        (phone == null || phone.isBlank())) continue;
-
-                    // Generate company name from phone if not available
-                    if (companyName == null || companyName.isBlank()) {
-                        companyName = phone != null ? "Client " + phone : "Unknown Company";
-                    }
-
-                    Client client = new Client();
-                    client.companyName = companyName;
-                    client.category = category;
-                    client.sourceFile = fileName;
-                    client.sourceSheet = sheetName;
-
-                    // Map all columns
-                    for (Map.Entry<String, Integer> entry : columnIndices.entrySet()) {
-                        String field = entry.getKey();
-                        Cell cell = row.getCell(entry.getValue());
-
-                        if (cell == null || field.equals("companyName")) continue;
-
-                        switch (field) {
-                            case "status": client.status = getCellStringValue(cell); break;
-                            case "cui": client.cui = getCellStringValue(cell); break;
-                            case "registrationNumber": client.registrationNumber = getCellStringValue(cell); break;
-                            case "caenCode": client.caenCode = getCellStringValue(cell); break;
-                            case "caenSection": client.caenSection = getCellStringValue(cell); break;
-                            case "caenDivision": client.caenDivision = getCellStringValue(cell); break;
-                            case "caenGroup": client.caenGroup = getCellStringValue(cell); break;
-                            case "county": client.county = getCellStringValue(cell); break;
-                            case "locality": client.locality = getCellStringValue(cell); break;
-                            case "address": client.address = getCellStringValue(cell); break;
-                            case "postalCode": client.postalCode = getCellStringValue(cell); break;
-                            case "revenue": client.revenue = getCellNumericValue(cell); break;
-                            case "netProfit": client.netProfit = getCellNumericValue(cell); break;
-                            case "vatPayer": client.vatPayer = getCellBooleanValue(cell); break;
-                            case "revenue2023": client.revenue2023 = getCellNumericValue(cell); break;
-                            case "revenue2022": client.revenue2022 = getCellNumericValue(cell); break;
-                            case "profit2023": client.profit2023 = getCellNumericValue(cell); break;
-                            case "profit2022": client.profit2022 = getCellNumericValue(cell); break;
-                            case "receivables2023": client.receivables2023 = getCellNumericValue(cell); break;
-                            case "equity2023": client.equity2023 = getCellNumericValue(cell); break;
-                            case "employees": {
-                                Double val = getCellNumericValue(cell);
-                                client.employees = val != null ? val.intValue() : null;
-                                break;
-                            }
-                            case "foundingYear": {
-                                Double val = getCellNumericValue(cell);
-                                client.foundingYear = val != null ? val.intValue() : null;
-                                break;
-                            }
-                            case "phoneVerified": client.phoneVerified = normalizePhoneNumber(getCellStringValue(cell)); break;
-                            case "phonePrimary": client.phonePrimary = normalizePhoneNumber(getCellStringValue(cell)); break;
-                            case "phoneSecondary": client.phoneSecondary = normalizePhoneNumber(getCellStringValue(cell)); break;
-                            case "phoneContact": client.phoneContact = normalizePhoneNumber(getCellStringValue(cell)); break;
-                            case "phoneMarketing": client.phoneMarketing = normalizePhoneNumber(getCellStringValue(cell)); break;
-                            case "phoneWebsite": client.phoneWebsite = normalizePhoneNumber(getCellStringValue(cell)); break;
-                            case "emailPrimary": client.emailPrimary = getCellStringValue(cell); break;
-                            case "emailSecondary": client.emailSecondary = getCellStringValue(cell); break;
-                            case "emailMarketing": client.emailMarketing = getCellStringValue(cell); break;
-                            case "emailWebsite": client.emailWebsite = getCellStringValue(cell); break;
-                            case "emailContact": client.emailContact = getCellStringValue(cell); break;
-                            case "websites": client.websites = getCellStringValue(cell); break;
-                            case "administrator": client.administrator = getCellStringValue(cell); break;
-                            case "contactPerson": client.contactPerson = getCellStringValue(cell); break;
-                            case "contactDate": client.contactDate = getCellDateValue(cell); break;
-                            case "dealId": client.dealId = getCellStringValue(cell); break;
-                            case "observations": client.observations = getCellStringValue(cell); break;
-                        }
-                    }
-
-                    clients.add(client);
-                    sheetClientCount++;
-                }
-
-                LOG.infof("Parsed %d clients from sheet \"%s\" (category: %s) in file \"%s\"",
-                    sheetClientCount, sheetName, category, fileName);
-            }
+            parseWorkbook(workbook, fileName, columnMapping, isLorandFile, clients);
         }
 
         return clients;
+    }
+
+    /**
+     * Shared method to parse workbook and extract clients.
+     */
+    private void parseWorkbook(Workbook workbook, String fileName, Map<String, String> columnMapping, 
+                               boolean isLorandFile, List<Client> clients) {
+        for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+            Sheet sheet = workbook.getSheetAt(sheetIndex);
+            String sheetName = sheet.getSheetName();
+
+            // Skip empty or excluded sheets
+            if (sheet.getLastRowNum() < 1) continue;
+            String normalizedSheetName = sheetName.toLowerCase().trim();
+            if (EXCLUDED_SHEETS.stream().anyMatch(normalizedSheetName::contains)) continue;
+
+            // Determine category from sheet name
+            String category = getCategoryFromSheetName(sheetName);
+
+            // Get header row
+            Row headerRow = sheet.getRow(0);
+            if (headerRow == null) continue;
+
+            Map<String, Integer> columnIndices = new HashMap<>();
+            for (int colIndex = 0; colIndex < headerRow.getLastCellNum(); colIndex++) {
+                Cell cell = headerRow.getCell(colIndex);
+                if (cell != null) {
+                    String header = getCellStringValue(cell);
+                    if (header != null && columnMapping.containsKey(header)) {
+                        columnIndices.put(columnMapping.get(header), colIndex);
+                    }
+                }
+                // Handle special index-based columns for Lorand file
+                if (isLorandFile && colIndex == 4) {
+                    columnIndices.put("contactPerson", colIndex);
+                }
+            }
+
+            // Check if we have essential columns
+            if (!columnIndices.containsKey("companyName") && !columnIndices.containsKey("phonePrimary")) {
+                LOG.warnf("Skipping sheet \"%s\" - no essential columns found", sheetName);
+                continue;
+            }
+
+            // Parse data rows
+            int sheetClientCount = 0;
+            for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                if (row == null) continue;
+
+                // Skip empty rows
+                String companyName = columnIndices.containsKey("companyName") ?
+                    getCellStringValue(row.getCell(columnIndices.get("companyName"))) : null;
+                String phone = columnIndices.containsKey("phonePrimary") ?
+                    getCellStringValue(row.getCell(columnIndices.get("phonePrimary"))) : null;
+
+                if ((companyName == null || companyName.isBlank()) && 
+                    (phone == null || phone.isBlank())) continue;
+
+                // Generate company name from phone if not available
+                if (companyName == null || companyName.isBlank()) {
+                    companyName = phone != null ? "Client " + phone : "Unknown Company";
+                }
+
+                Client client = new Client();
+                client.companyName = companyName;
+                client.category = category;
+                client.sourceFile = fileName;
+                client.sourceSheet = sheetName;
+
+                // Map all columns
+                for (Map.Entry<String, Integer> entry : columnIndices.entrySet()) {
+                    String field = entry.getKey();
+                    Cell cell = row.getCell(entry.getValue());
+
+                    if (cell == null || field.equals("companyName")) continue;
+
+                    switch (field) {
+                        case "status": client.status = getCellStringValue(cell); break;
+                        case "cui": client.cui = getCellStringValue(cell); break;
+                        case "registrationNumber": client.registrationNumber = getCellStringValue(cell); break;
+                        case "caenCode": client.caenCode = getCellStringValue(cell); break;
+                        case "caenSection": client.caenSection = getCellStringValue(cell); break;
+                        case "caenDivision": client.caenDivision = getCellStringValue(cell); break;
+                        case "caenGroup": client.caenGroup = getCellStringValue(cell); break;
+                        case "county": client.county = getCellStringValue(cell); break;
+                        case "locality": client.locality = getCellStringValue(cell); break;
+                        case "address": client.address = getCellStringValue(cell); break;
+                        case "postalCode": client.postalCode = getCellStringValue(cell); break;
+                        case "revenue": client.revenue = getCellNumericValue(cell); break;
+                        case "netProfit": client.netProfit = getCellNumericValue(cell); break;
+                        case "vatPayer": client.vatPayer = getCellBooleanValue(cell); break;
+                        case "revenue2023": client.revenue2023 = getCellNumericValue(cell); break;
+                        case "revenue2022": client.revenue2022 = getCellNumericValue(cell); break;
+                        case "profit2023": client.profit2023 = getCellNumericValue(cell); break;
+                        case "profit2022": client.profit2022 = getCellNumericValue(cell); break;
+                        case "receivables2023": client.receivables2023 = getCellNumericValue(cell); break;
+                        case "equity2023": client.equity2023 = getCellNumericValue(cell); break;
+                        case "employees": {
+                            Double val = getCellNumericValue(cell);
+                            client.employees = val != null ? val.intValue() : null;
+                            break;
+                        }
+                        case "foundingYear": {
+                            Double val = getCellNumericValue(cell);
+                            client.foundingYear = val != null ? val.intValue() : null;
+                            break;
+                        }
+                        case "phoneVerified": client.phoneVerified = normalizePhoneNumber(getCellStringValue(cell)); break;
+                        case "phonePrimary": client.phonePrimary = normalizePhoneNumber(getCellStringValue(cell)); break;
+                        case "phoneSecondary": client.phoneSecondary = normalizePhoneNumber(getCellStringValue(cell)); break;
+                        case "phoneContact": client.phoneContact = normalizePhoneNumber(getCellStringValue(cell)); break;
+                        case "phoneMarketing": client.phoneMarketing = normalizePhoneNumber(getCellStringValue(cell)); break;
+                        case "phoneWebsite": client.phoneWebsite = normalizePhoneNumber(getCellStringValue(cell)); break;
+                        case "emailPrimary": client.emailPrimary = getCellStringValue(cell); break;
+                        case "emailSecondary": client.emailSecondary = getCellStringValue(cell); break;
+                        case "emailMarketing": client.emailMarketing = getCellStringValue(cell); break;
+                        case "emailWebsite": client.emailWebsite = getCellStringValue(cell); break;
+                        case "emailContact": client.emailContact = getCellStringValue(cell); break;
+                        case "websites": client.websites = getCellStringValue(cell); break;
+                        case "administrator": client.administrator = getCellStringValue(cell); break;
+                        case "contactPerson": client.contactPerson = getCellStringValue(cell); break;
+                        case "contactDate": client.contactDate = getCellDateValue(cell); break;
+                        case "dealId": client.dealId = getCellStringValue(cell); break;
+                        case "observations": client.observations = getCellStringValue(cell); break;
+                    }
+                }
+
+                clients.add(client);
+                sheetClientCount++;
+            }
+
+            LOG.infof("Parsed %d clients from sheet \"%s\" (category: %s) in file \"%s\"",
+                sheetClientCount, sheetName, category, fileName);
+        }
     }
 
     private String getCategoryFromSheetName(String sheetName) {
