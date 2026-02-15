@@ -29,6 +29,7 @@ import java.util.List;
 public class ImportResource {
 
     private static final Logger LOG = Logger.getLogger(ImportResource.class);
+    private static final int MAX_LOG_INPUT_LENGTH = 100;
 
     @Inject
     ExcelImportService excelImportService;
@@ -43,9 +44,15 @@ public class ImportResource {
     @Path("/clients")
     @Transactional
     public Response importClients(ImportRequest request) {
+        String logMessage = request != null 
+            ? "directory=" + sanitizeForLog(request.directory) 
+            : "null request body";
+        LOG.infof("Received import request: %s", logMessage);
+        
         try {
             // Determine base directory from config
             String baseDir = excelConfig.dataDirectory();
+            LOG.debugf("Using configured data directory");
 
             // Safely resolve and validate requested directory
             java.nio.file.Path basePath = Paths.get(baseDir).toAbsolutePath().normalize();
@@ -56,6 +63,7 @@ public class ImportResource {
 
                 // Prevent directory traversal
                 if (!requestedPath.startsWith(basePath)) {
+                    LOG.warnf("Directory traversal attempt detected - invalid path requested");
                     return Response.status(Response.Status.BAD_REQUEST)
                         .entity(ApiResponse.error("The specified directory path is invalid or not allowed."))
                         .build();
@@ -64,17 +72,26 @@ public class ImportResource {
                 dataPath = requestedPath;
             }
 
+            LOG.debugf("Searching for Excel files in configured directory");
+            
             // Get Excel files from directory
             List<String> excelFiles = getExcelFilesFromDirectory(dataPath.toFile());
+            LOG.infof("Found %d Excel files", excelFiles.size());
 
             if (excelFiles.isEmpty()) {
+                boolean dirExists = dataPath.toFile().exists();
+                boolean isDir = dataPath.toFile().isDirectory();
+                LOG.warnf("No Excel files found (directory exists=%s, isDirectory=%s)", dirExists, isDir);
                 return Response.status(Response.Status.BAD_REQUEST)
                     .entity(ApiResponse.error("No Excel files (.xlsx) were found in the specified directory. Please check the path and try again."))
                     .build();
             }
 
             // Import clients
+            LOG.infof("Starting import from %d Excel files", excelFiles.size());
             ExcelImportService.ImportResult result = excelImportService.importClientsFromExcel(excelFiles);
+            LOG.infof("Import completed: %d imported, %d skipped, %d errors", 
+                result.imported, result.skipped, result.errors.size());
 
             ImportResultDto dto = new ImportResultDto();
             dto.filesProcessed = excelFiles.size();
@@ -94,7 +111,7 @@ public class ImportResource {
 
             return Response.ok(ApiResponse.success(dto, message.toString())).build();
         } catch (Exception e) {
-            LOG.errorf("Error importing clients: %s", e.getMessage());
+            LOG.errorf(e, "Error importing clients: %s", e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(ApiResponse.error("Error importing clients"))
                 .build();
@@ -114,5 +131,23 @@ public class ImportResource {
             }
         }
         return files;
+    }
+
+    /**
+     * Sanitize user input for safe logging by removing potentially dangerous characters.
+     */
+    private String sanitizeForLog(String input) {
+        if (input == null) {
+            return "null";
+        }
+        // Remove newlines, carriage returns, and ANSI escape sequences to prevent log injection
+        String sanitized = input.replaceAll("[\\r\\n]", " ")
+                                .replaceAll("\\x1b\\[[0-9;]*m", "")
+                                .replaceAll("[\\x00-\\x1f]", "");
+        // Limit length to prevent log flooding
+        if (sanitized.length() > MAX_LOG_INPUT_LENGTH) {
+            sanitized = sanitized.substring(0, MAX_LOG_INPUT_LENGTH) + "...";
+        }
+        return sanitized;
     }
 }
