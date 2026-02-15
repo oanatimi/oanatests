@@ -36,9 +36,10 @@ COPY --from=builder /app/db ./db
 EXPOSE 3001
 
 # Health check using Node.js (wget not available in Alpine by default)
+# Uses PORT environment variable (Railway assigns dynamic port)
 # Increased start-period to 60s to allow time for migrations and server initialization
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "const port = process.env.PORT || 3001; require('http').get('http://localhost:' + port + '/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Start command - run migrations first, then start the server
 # Migrations are idempotent (uses IF NOT EXISTS) so safe to run every time
