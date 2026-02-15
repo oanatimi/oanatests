@@ -14,6 +14,26 @@
         "description": "PostgreSQL connection string (auto-linked from Railway Postgres)",
         "default": "${{Postgres.DATABASE_URL}}"
       },
+      "DB_HOST": {
+        "description": "PostgreSQL host (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGHOST}}"
+      },
+      "DB_PORT": {
+        "description": "PostgreSQL port (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGPORT}}"
+      },
+      "DB_NAME": {
+        "description": "PostgreSQL database name (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGDATABASE}}"
+      },
+      "DB_USER": {
+        "description": "PostgreSQL user (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGUSER}}"
+      },
+      "DB_PASSWORD": {
+        "description": "PostgreSQL password (auto-linked from Railway Postgres)",
+        "default": "${{Postgres.PGPASSWORD}}"
+      },
       "PORT": {
         "description": "Server port",
         "default": "3001"
