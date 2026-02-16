@@ -2,9 +2,9 @@ package com.clientmanagement.service;
 
 import com.clientmanagement.config.SmsConfig;
 import com.clientmanagement.entity.Client;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jboss.logging.Logger;
@@ -102,10 +102,12 @@ public class ExcelImportService {
         public List<String> logs = new ArrayList<>();
     }
 
+    private static final int BATCH_SIZE = 50;
+
     /**
      * Import clients from Excel files.
+     * Uses batched transactions to avoid transaction timeout for large imports.
      */
-    @Transactional
     public ImportResult importClientsFromExcel(List<String> filePaths) {
         ImportResult result = new ImportResult();
 
@@ -115,34 +117,7 @@ public class ExcelImportService {
                 List<Client> clients = parseExcelFile(filePath);
                 addLog(result, String.format("Found %d clients to process from %s", clients.size(), filePath));
 
-                for (Client client : clients) {
-                    try {
-                        // Check for duplicates
-                        Client existingClient = null;
-
-                        if (client.phonePrimary != null && !client.phonePrimary.isBlank()) {
-                            existingClient = Client.find("companyName = ?1 AND phonePrimary = ?2",
-                                client.companyName, client.phonePrimary).firstResult();
-                        }
-
-                        if (existingClient == null && client.cui != null && !client.cui.isBlank()) {
-                            existingClient = Client.find("cui", client.cui).firstResult();
-                        }
-
-                        if (existingClient != null) {
-                            result.skipped++;
-                            continue;
-                        }
-
-                        client.persist();
-                        result.imported++;
-                    } catch (Exception e) {
-                        String errorMsg = String.format("Error importing client %s: %s",
-                            client.companyName, e.getMessage());
-                        addLog(result, errorMsg, "error");
-                        result.errors.add(errorMsg);
-                    }
-                }
+                persistClientsInBatches(clients, result);
 
                 addLog(result, String.format("Completed processing %s: %d imported so far", filePath, result.imported));
             } catch (Exception e) {
@@ -159,8 +134,8 @@ public class ExcelImportService {
 
     /**
      * Import clients from uploaded Excel files (InputStream).
+     * Uses batched transactions to avoid transaction timeout for large imports.
      */
-    @Transactional
     public ImportResult importClientsFromUploadedFiles(List<UploadedFile> uploadedFiles) {
         ImportResult result = new ImportResult();
 
@@ -170,34 +145,7 @@ public class ExcelImportService {
                 List<Client> clients = parseExcelFromInputStream(uploadedFile.inputStream, uploadedFile.fileName);
                 addLog(result, String.format("Found %d clients to process from %s", clients.size(), uploadedFile.fileName));
 
-                for (Client client : clients) {
-                    try {
-                        // Check for duplicates
-                        Client existingClient = null;
-
-                        if (client.phonePrimary != null && !client.phonePrimary.isBlank()) {
-                            existingClient = Client.find("companyName = ?1 AND phonePrimary = ?2",
-                                client.companyName, client.phonePrimary).firstResult();
-                        }
-
-                        if (existingClient == null && client.cui != null && !client.cui.isBlank()) {
-                            existingClient = Client.find("cui", client.cui).firstResult();
-                        }
-
-                        if (existingClient != null) {
-                            result.skipped++;
-                            continue;
-                        }
-
-                        client.persist();
-                        result.imported++;
-                    } catch (Exception e) {
-                        String errorMsg = String.format("Error importing client %s: %s",
-                            client.companyName, e.getMessage());
-                        addLog(result, errorMsg, "error");
-                        result.errors.add(errorMsg);
-                    }
-                }
+                persistClientsInBatches(clients, result);
 
                 addLog(result, String.format("Completed processing %s: %d imported so far", uploadedFile.fileName, result.imported));
             } catch (Exception e) {
@@ -210,6 +158,59 @@ public class ExcelImportService {
         addLog(result, String.format("Import complete: %d imported, %d skipped, %d errors",
             result.imported, result.skipped, result.errors.size()));
         return result;
+    }
+
+    /**
+     * Persist clients in batches using programmatic transactions.
+     * Each batch runs in its own transaction to avoid timeout issues with large imports.
+     */
+    private void persistClientsInBatches(List<Client> clients, ImportResult result) {
+        for (int i = 0; i < clients.size(); i += BATCH_SIZE) {
+            int end = Math.min(i + BATCH_SIZE, clients.size());
+            List<Client> batch = clients.subList(i, end);
+
+            try {
+                QuarkusTransaction.run(() -> {
+                    for (Client client : batch) {
+                        try {
+                            persistClientIfNew(client, result);
+                        } catch (Exception e) {
+                            String errorMsg = String.format("Error importing client %s: %s",
+                                client.companyName, e.getMessage());
+                            addLog(result, errorMsg, "error");
+                            result.errors.add(errorMsg);
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                String errorMsg = String.format("Error processing batch %d-%d: %s",
+                    i, end - 1, e.getMessage());
+                addLog(result, errorMsg, "error");
+                result.errors.add(errorMsg);
+            }
+        }
+    }
+
+    private void persistClientIfNew(Client client, ImportResult result) {
+        // Check for duplicates
+        Client existingClient = null;
+
+        if (client.phonePrimary != null && !client.phonePrimary.isBlank()) {
+            existingClient = Client.find("companyName = ?1 AND phonePrimary = ?2",
+                client.companyName, client.phonePrimary).firstResult();
+        }
+
+        if (existingClient == null && client.cui != null && !client.cui.isBlank()) {
+            existingClient = Client.find("cui", client.cui).firstResult();
+        }
+
+        if (existingClient != null) {
+            result.skipped++;
+            return;
+        }
+
+        client.persist();
+        result.imported++;
     }
 
     /**
