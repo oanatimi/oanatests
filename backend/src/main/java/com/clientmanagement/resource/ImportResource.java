@@ -7,7 +7,6 @@ import com.clientmanagement.dto.ImportResultDto;
 import com.clientmanagement.service.ExcelImportService;
 import io.smallrye.common.annotation.Blocking;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -51,7 +50,6 @@ public class ImportResource {
     @POST
     @Path("/clients")
     @Blocking
-    @Transactional
     public Response importClients(ImportRequest request) {
         String logMessage = request != null 
             ? "directory=" + sanitizeForLog(request.directory) 
@@ -135,7 +133,6 @@ public class ImportResource {
     @Path("/clients/upload")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Blocking
-    @Transactional
     public Response importClientsFromUpload(@RestForm("files") List<FileUpload> files) {
         LOG.infof("Received file upload import request with %d files", files != null ? files.size() : 0);
         
