@@ -204,3 +204,77 @@ export const importApi = {
     });
   },
 };
+
+// Vehicle types
+export interface Vehicle {
+  id: string;
+  clientId?: string;
+  licensePlate: string;
+  brand?: string;
+  model?: string;
+  vin?: string;
+  itpExpiryDate?: string;
+  insuranceExpiryDate?: string;
+  rovinietaExpiryDate?: string;
+  observations?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Computed fields
+  itpStatus?: 'expired' | 'expiring_soon' | 'valid' | 'unknown';
+  daysUntilItpExpiry?: number;
+  hasItpReminder?: boolean;
+  lastItpReminderSentAt?: string;
+  // Client info
+  clientName?: string;
+  clientPhone?: string;
+  // Reminders
+  recentReminders?: VehicleReminder[];
+}
+
+export interface VehicleReminder {
+  id: string;
+  vehicleId: string;
+  reminderType: string;
+  expiryDate: string;
+  sentAt: string;
+  messageContent?: string;
+  createdAt: string;
+}
+
+export interface SendReminderResult {
+  reminder: VehicleReminder;
+  messageContent: string;
+  vehicleLicensePlate: string;
+  clientName?: string;
+  clientPhone?: string;
+}
+
+export const vehiclesApi = {
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    itpStatus?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => api.get<ApiResponse<Vehicle[]>>('/vehicles', { params }),
+
+  getNeedingReminders: () => api.get<ApiResponse<Vehicle[]>>('/vehicles/needing-reminders'),
+
+  getById: (id: string) => api.get<ApiResponse<Vehicle>>(`/vehicles/${id}`),
+
+  create: (data: Partial<Vehicle>) => api.post<ApiResponse<Vehicle>>('/vehicles', data),
+
+  update: (id: string, data: Partial<Vehicle>) => api.put<ApiResponse<Vehicle>>(`/vehicles/${id}`, data),
+
+  delete: (id: string) => api.delete(`/vehicles/${id}`),
+
+  sendReminder: (vehicleId: string, reminderType?: string, messageContent?: string) =>
+    api.post<ApiResponse<SendReminderResult>>(`/vehicles/${vehicleId}/send-reminder`, {
+      reminderType: reminderType || 'ITP',
+      messageContent,
+    }),
+
+  getReminders: (vehicleId: string) =>
+    api.get<ApiResponse<VehicleReminder[]>>(`/vehicles/${vehicleId}/reminders`),
+};
