@@ -79,10 +79,10 @@ export default function MessagesPage() {
           }`}
         >
           <p className="text-2xl font-bold text-gray-900">
-            {(queueStatus?.data?.queue?.pending || 0) +
-              (queueStatus?.data?.queue?.processing || 0) +
-              (queueStatus?.data?.queue?.completed || 0) +
-              (queueStatus?.data?.queue?.failed || 0)}
+            {(queueStatus?.data?.data?.queue?.pending || 0) +
+              (queueStatus?.data?.data?.queue?.processing || 0) +
+              (queueStatus?.data?.data?.queue?.completed || 0) +
+              (queueStatus?.data?.data?.queue?.failed || 0)}
           </p>
           <p className="text-sm text-gray-600">All</p>
         </button>
@@ -93,7 +93,7 @@ export default function MessagesPage() {
           }`}
         >
           <p className="text-2xl font-bold text-yellow-600">
-            {queueStatus?.data?.queue?.pending || 0}
+            {queueStatus?.data?.data?.queue?.pending || 0}
           </p>
           <p className="text-sm text-gray-600">Pending</p>
         </button>
@@ -104,7 +104,7 @@ export default function MessagesPage() {
           }`}
         >
           <p className="text-2xl font-bold text-blue-600">
-            {queueStatus?.data?.queue?.processing || 0}
+            {queueStatus?.data?.data?.queue?.processing || 0}
           </p>
           <p className="text-sm text-gray-600">Sending</p>
         </button>
@@ -115,7 +115,7 @@ export default function MessagesPage() {
           }`}
         >
           <p className="text-2xl font-bold text-green-600">
-            {queueStatus?.data?.queue?.completed || 0}
+            {queueStatus?.data?.data?.queue?.completed || 0}
           </p>
           <p className="text-sm text-gray-600">Sent</p>
         </button>
@@ -126,7 +126,7 @@ export default function MessagesPage() {
           }`}
         >
           <p className="text-2xl font-bold text-red-600">
-            {queueStatus?.data?.queue?.failed || 0}
+            {queueStatus?.data?.data?.queue?.failed || 0}
           </p>
           <p className="text-sm text-gray-600">Failed</p>
         </button>

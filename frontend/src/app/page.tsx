@@ -39,21 +39,21 @@ export default function Dashboard() {
     },
     {
       name: 'Messages Sent',
-      value: queueStatus?.data?.queue?.completed || 0,
+      value: queueStatus?.data?.data?.queue?.completed || 0,
       icon: CheckCircle,
       color: 'bg-green-500',
       href: '/messages',
     },
     {
       name: 'Pending',
-      value: queueStatus?.data?.queue?.pending || 0,
+      value: queueStatus?.data?.data?.queue?.pending || 0,
       icon: Clock,
       color: 'bg-yellow-500',
       href: '/messages?status=PENDING',
     },
     {
       name: 'Failed',
-      value: queueStatus?.data?.queue?.failed || 0,
+      value: queueStatus?.data?.data?.queue?.failed || 0,
       icon: AlertCircle,
       color: 'bg-red-500',
       href: '/messages?status=FAILED',
@@ -108,31 +108,31 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <p className="text-2xl font-bold text-yellow-600">
-              {queueStatus?.data?.queue?.pending || 0}
+              {queueStatus?.data?.data?.queue?.pending || 0}
             </p>
             <p className="text-sm text-gray-600">Pending</p>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <p className="text-2xl font-bold text-blue-600">
-              {queueStatus?.data?.queue?.processing || 0}
+              {queueStatus?.data?.data?.queue?.processing || 0}
             </p>
             <p className="text-sm text-gray-600">Processing</p>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <p className="text-2xl font-bold text-green-600">
-              {queueStatus?.data?.queue?.completed || 0}
+              {queueStatus?.data?.data?.queue?.completed || 0}
             </p>
             <p className="text-sm text-gray-600">Completed</p>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <p className="text-2xl font-bold text-red-600">
-              {queueStatus?.data?.queue?.failed || 0}
+              {queueStatus?.data?.data?.queue?.failed || 0}
             </p>
             <p className="text-sm text-gray-600">Failed</p>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <p className="text-2xl font-bold text-purple-600">
-              {queueStatus?.data?.queue?.deadLetter || 0}
+              {queueStatus?.data?.data?.queue?.deadLetter || 0}
             </p>
             <p className="text-sm text-gray-600">Dead Letter</p>
           </div>
@@ -146,10 +146,10 @@ export default function Dashboard() {
           <TrendingUp className="h-8 w-8 text-primary-600" />
           <div>
             <p className="text-sm text-gray-600">
-              Current capacity: {queueStatus?.data?.rateLimit?.currentReservoir || 0} / {queueStatus?.data?.rateLimit?.maxReservoir || 0} messages per minute
+              Current capacity: {queueStatus?.data?.data?.rateLimit?.currentReservoir || 0} / {queueStatus?.data?.data?.rateLimit?.maxReservoir || 0} messages per minute
             </p>
             <p className="text-sm text-gray-600">
-              Queued: {queueStatus?.data?.rateLimit?.queued || 0} | Running: {queueStatus?.data?.rateLimit?.running || 0}
+              Queued: {queueStatus?.data?.data?.rateLimit?.queued || 0} | Running: {queueStatus?.data?.data?.rateLimit?.running || 0}
             </p>
           </div>
         </div>

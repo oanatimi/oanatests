@@ -47,7 +47,7 @@ export default function TemplatesPage() {
     },
   });
 
-  const templates = templatesData?.data || [];
+  const templates = templatesData?.data?.data || [];
 
   const handleCreate = () => {
     if (!newTemplate?.name || !newTemplate?.content) {

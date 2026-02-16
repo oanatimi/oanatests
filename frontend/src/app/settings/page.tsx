@@ -24,7 +24,7 @@ export default function SettingsPage() {
     mutationFn: () => messagesApi.retryDeadLetters(),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['queueStatus'] });
-      alert(`${response.data.retriedCount} messages queued for retry`);
+      alert(`${response.data?.data?.retriedCount || 0} messages queued for retry`);
     },
   });
 
@@ -47,45 +47,45 @@ export default function SettingsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div className="bg-yellow-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-yellow-600">
-                  {queueStatus?.data?.queue?.pending || 0}
+                  {queueStatus?.data?.data?.queue?.pending || 0}
                 </p>
                 <p className="text-sm text-gray-600">Pending</p>
               </div>
               <div className="bg-blue-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-blue-600">
-                  {queueStatus?.data?.queue?.processing || 0}
+                  {queueStatus?.data?.data?.queue?.processing || 0}
                 </p>
                 <p className="text-sm text-gray-600">Processing</p>
               </div>
               <div className="bg-green-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-green-600">
-                  {queueStatus?.data?.queue?.completed || 0}
+                  {queueStatus?.data?.data?.queue?.completed || 0}
                 </p>
                 <p className="text-sm text-gray-600">Completed</p>
               </div>
               <div className="bg-red-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-red-600">
-                  {queueStatus?.data?.queue?.failed || 0}
+                  {queueStatus?.data?.data?.queue?.failed || 0}
                 </p>
                 <p className="text-sm text-gray-600">Failed</p>
               </div>
               <div className="bg-purple-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-purple-600">
-                  {queueStatus?.data?.queue?.deadLetter || 0}
+                  {queueStatus?.data?.data?.queue?.deadLetter || 0}
                 </p>
                 <p className="text-sm text-gray-600">Dead Letter</p>
               </div>
             </div>
 
             {/* Dead Letter Queue */}
-            {(queueStatus?.data?.queue?.deadLetter || 0) > 0 && (
+            {(queueStatus?.data?.data?.queue?.deadLetter || 0) > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-start">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 mr-3 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <h3 className="font-medium text-yellow-900">Dead Letter Messages</h3>
                     <p className="text-sm text-yellow-700 mt-1">
-                      There are {queueStatus?.data?.queue?.deadLetter} messages that have exceeded the maximum retry attempts.
+                      There are {queueStatus?.data?.data?.queue?.deadLetter} messages that have exceeded the maximum retry attempts.
                     </p>
                     <button
                       onClick={() => retryMutation.mutate()}
@@ -114,10 +114,10 @@ export default function SettingsPage() {
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-primary-600">
-                {queueStatus?.data?.rateLimit?.currentReservoir || 0}
+                {queueStatus?.data?.data?.rateLimit?.currentReservoir || 0}
               </p>
               <p className="text-sm text-gray-500">
-                of {queueStatus?.data?.rateLimit?.maxReservoir || 0}
+                of {queueStatus?.data?.data?.rateLimit?.maxReservoir || 0}
               </p>
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function SettingsPage() {
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-gray-900">
-                {queueStatus?.data?.rateLimit?.queued || 0}
+                {queueStatus?.data?.data?.rateLimit?.queued || 0}
               </p>
               <p className="text-sm text-gray-500">queued</p>
             </div>

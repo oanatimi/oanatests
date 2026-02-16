@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { importApi } from '@/lib/api';
+import { importApi, ImportResult } from '@/lib/api';
 import { 
   Upload, 
   FileSpreadsheet, 
@@ -18,19 +18,12 @@ export default function ImportPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importResult, setImportResult] = useState<{
-    success: boolean;
-    filesProcessed: number;
-    imported: number;
-    skipped: number;
-    errors: string[];
-    logs: string[];
-  } | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   const uploadMutation = useMutation({
     mutationFn: (files: File[]) => importApi.uploadClients(files),
     onSuccess: (response) => {
-      setImportResult(response.data);
+      setImportResult(response.data?.data);
       setSelectedFiles([]);
     },
     onError: (error: Error) => {
@@ -200,17 +193,17 @@ export default function ImportPage() {
       {/* Import Result */}
       {importResult && (
         <div className={`rounded-xl shadow-sm p-6 ${
-          importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+          (importResult.errors?.length || 0) === 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
         }`}>
           <div className="flex items-start">
-            {importResult.success ? (
+            {(importResult.errors?.length || 0) === 0 ? (
               <CheckCircle className="h-6 w-6 text-green-600 mr-3 flex-shrink-0" />
             ) : (
               <AlertCircle className="h-6 w-6 text-red-600 mr-3 flex-shrink-0" />
             )}
             <div className="flex-1">
-              <h3 className={`font-semibold ${importResult.success ? 'text-green-900' : 'text-red-900'}`}>
-                {importResult.success ? 'Import Completed' : 'Import Completed with Errors'}
+              <h3 className={`font-semibold ${(importResult.errors?.length || 0) === 0 ? 'text-green-900' : 'text-red-900'}`}>
+                {(importResult.errors?.length || 0) === 0 ? 'Import Completed' : 'Import Completed with Errors'}
               </h3>
               
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -228,7 +221,7 @@ export default function ImportPage() {
                 </div>
               </div>
 
-              {importResult.errors.length > 0 && (
+              {importResult.errors && importResult.errors.length > 0 && (
                 <div className="mt-4">
                   <h4 className="font-medium text-red-900 mb-2">Errors ({importResult.errors.length})</h4>
                   <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">

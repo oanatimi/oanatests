@@ -52,7 +52,7 @@ export default function ClientsPage() {
     queryFn: () => messagesApi.getTemplates(),
   });
 
-  const templates = templatesData?.data || [];
+  const templates = templatesData?.data?.data || [];
 
   const bulkMessageMutation = useMutation({
     mutationFn: ({ clientIds, content }: { clientIds: string[]; content: string }) =>
@@ -158,7 +158,7 @@ export default function ClientsPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">All Categories</option>
-              {(categories?.data || []).map((c: string) => (
+              {(categories?.data?.data || []).map((c: string) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -173,7 +173,7 @@ export default function ClientsPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">All Counties</option>
-              {(counties?.data || []).map((c: string) => (
+              {(counties?.data?.data || []).map((c: string) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
