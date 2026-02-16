@@ -295,20 +295,19 @@ public class VehicleResource {
                 String formattedDate = expiryDate.format(DATE_FORMATTER);
                 long daysUntil = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
                 
+                // Build vehicle description string without extra spaces
+                String vehicleDesc = buildVehicleDescription(vehicle.brand, vehicle.model, vehicle.licensePlate);
+                
                 if (daysUntil < 0) {
                     messageContent = String.format(
-                        "Atenție! ITP-ul vehiculului %s %s (%s) a expirat pe %s. Vă rugăm să efectuați inspecția tehnică periodică cât mai curând.",
-                        vehicle.brand != null ? vehicle.brand : "",
-                        vehicle.model != null ? vehicle.model : "",
-                        vehicle.licensePlate,
+                        "Atenție! ITP-ul vehiculului %s a expirat pe %s. Vă rugăm să efectuați inspecția tehnică periodică cât mai curând.",
+                        vehicleDesc,
                         formattedDate
                     );
                 } else {
                     messageContent = String.format(
-                        "Vă informăm că ITP-ul vehiculului %s %s (%s) expiră pe %s (în %d zile). Vă rugăm să programați inspecția tehnică periodică.",
-                        vehicle.brand != null ? vehicle.brand : "",
-                        vehicle.model != null ? vehicle.model : "",
-                        vehicle.licensePlate,
+                        "Vă informăm că ITP-ul vehiculului %s expiră pe %s (în %d zile). Vă rugăm să programați inspecția tehnică periodică.",
+                        vehicleDesc,
                         formattedDate,
                         daysUntil
                     );
@@ -377,5 +376,25 @@ public class VehicleResource {
                 .entity(ApiResponse.error("Error fetching reminders"))
                 .build();
         }
+    }
+
+    /**
+     * Build a vehicle description string without extra spaces.
+     */
+    private String buildVehicleDescription(String brand, String model, String licensePlate) {
+        StringBuilder sb = new StringBuilder();
+        if (brand != null && !brand.isBlank()) {
+            sb.append(brand);
+        }
+        if (model != null && !model.isBlank()) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(model);
+        }
+        if (sb.length() > 0) {
+            sb.append(" (").append(licensePlate).append(")");
+        } else {
+            sb.append(licensePlate);
+        }
+        return sb.toString();
     }
 }
