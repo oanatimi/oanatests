@@ -115,6 +115,19 @@ export interface QueueStatus {
   };
 }
 
+// API response wrapper (matches backend ApiResponse<T>)
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 // API functions
 export const clientsApi = {
   getAll: (params?: {
@@ -125,17 +138,17 @@ export const clientsApi = {
     category?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
-  }) => api.get<PaginatedResponse<Client>>('/clients', { params }),
+  }) => api.get<ApiResponse<Client[]>>('/clients', { params }),
   
-  getById: (id: string) => api.get<Client>(`/clients/${id}`),
+  getById: (id: string) => api.get<ApiResponse<Client>>(`/clients/${id}`),
   
-  update: (id: string, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data),
+  update: (id: string, data: Partial<Client>) => api.put<ApiResponse<Client>>(`/clients/${id}`, data),
   
   delete: (id: string) => api.delete(`/clients/${id}`),
   
-  getCounties: () => api.get<string[]>('/clients/counties'),
+  getCounties: () => api.get<ApiResponse<string[]>>('/clients/counties'),
   
-  getCategories: () => api.get<string[]>('/clients/categories'),
+  getCategories: () => api.get<ApiResponse<string[]>>('/clients/categories'),
 };
 
 export const messagesApi = {
@@ -144,7 +157,7 @@ export const messagesApi = {
     limit?: number;
     status?: string;
     clientId?: string;
-  }) => api.get<PaginatedResponse<Message>>('/messages', { params }),
+  }) => api.get<ApiResponse<Message[]>>('/messages', { params }),
   
   send: (clientId: string, content: string, phoneNumber?: string) =>
     api.post('/messages/send', { clientId, content, phoneNumber }),
@@ -152,20 +165,28 @@ export const messagesApi = {
   sendBulk: (clientIds: string[], content: string) =>
     api.post('/messages/bulk', { clientIds, content }),
   
-  getQueueStatus: () => api.get<QueueStatus>('/messages/queue/status'),
+  getQueueStatus: () => api.get<ApiResponse<QueueStatus>>('/messages/queue/status'),
   
-  retryDeadLetters: () => api.post('/messages/queue/retry-dead-letters'),
+  retryDeadLetters: () => api.post<ApiResponse<{ retriedCount: number }>>('/messages/queue/retry-dead-letters'),
   
-  getTemplates: () => api.get<MessageTemplate[]>('/messages/templates'),
+  getTemplates: () => api.get<ApiResponse<MessageTemplate[]>>('/messages/templates'),
   
   createTemplate: (name: string, content: string) =>
-    api.post<MessageTemplate>('/messages/templates', { name, content }),
+    api.post<ApiResponse<MessageTemplate>>('/messages/templates', { name, content }),
   
   updateTemplate: (id: string, name: string, content: string) =>
-    api.put<MessageTemplate>(`/messages/templates/${id}`, { name, content }),
+    api.put<ApiResponse<MessageTemplate>>(`/messages/templates/${id}`, { name, content }),
   
   deleteTemplate: (id: string) => api.delete(`/messages/templates/${id}`),
 };
+
+export interface ImportResult {
+  filesProcessed: number;
+  imported: number;
+  skipped: number;
+  errors: string[];
+  logs: string[];
+}
 
 export const importApi = {
   importClients: (directory?: string) =>
@@ -176,7 +197,7 @@ export const importApi = {
     files.forEach(file => {
       formData.append('files', file);
     });
-    return api.post('/import/clients/upload', formData, {
+    return api.post<ApiResponse<ImportResult>>('/import/clients/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

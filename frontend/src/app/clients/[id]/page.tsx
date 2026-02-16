@@ -61,7 +61,7 @@ export default function ClientDetailPage() {
     queryFn: () => messagesApi.getTemplates(),
   });
 
-  const templates = templatesData?.data || [];
+  const templates = templatesData?.data?.data || [];
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
@@ -94,7 +94,7 @@ export default function ClientDetailPage() {
     );
   }
 
-  const client = clientData?.data;
+  const client = clientData?.data?.data;
 
   if (!client) {
     return (
