@@ -65,13 +65,27 @@ public class SmsService {
     }
 
     /**
-     * Send an SMS message.
+     * Send an SMS message via Cloudflare tunnel → Traccar SMS Gateway on phone.
+     *
+     * Flow: Railway backend → cloudflared URL → your PC → phone (Traccar SMS Gateway)
+     *
+     * Only needs: CLOUDFLARE_TUNNEL_URL + TRACCAR_API_TOKEN
      */
     public SmsSendResult sendSms(String phoneNumber, String message) {
-        String url = smsConfig.getEffectiveUrl();
-        if (url == null || url.isBlank()) {
-            LOG.warn("SMS URL not configured");
-            return SmsSendResult.failure("SMS URL not configured", false);
+        String baseUrl = smsConfig.cloudflare().tunnelUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            LOG.error("SMS not configured! Set CLOUDFLARE_TUNNEL_URL in Railway environment variables.");
+            return SmsSendResult.failure("SMS URL not configured. Set CLOUDFLARE_TUNNEL_URL.", false);
+        }
+
+        String apiToken = smsConfig.traccar().apiToken();
+        if (apiToken == null || apiToken.isBlank()) {
+            LOG.error("SMS token not configured! Set TRACCAR_API_TOKEN in Railway environment variables.");
+            return SmsSendResult.failure("SMS token not configured. Set TRACCAR_API_TOKEN.", false);
+        }
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
 
         queued.incrementAndGet();
@@ -80,29 +94,35 @@ public class SmsService {
             running.incrementAndGet();
             queued.decrementAndGet();
 
-            LOG.infof("Sending SMS to %s", phoneNumber);
+            LOG.infof("Sending SMS to %s via cloudflared tunnel: %s", phoneNumber, baseUrl);
 
-            String params = String.format("id=%s&phone=%s&message=%s",
-                URLEncoder.encode(smsConfig.traccar().deviceId(), StandardCharsets.UTF_8),
+            String formBody = String.format("phone=%s&message=%s",
                 URLEncoder.encode(phoneNumber, StandardCharsets.UTF_8),
                 URLEncoder.encode(message, StandardCharsets.UTF_8));
 
+            LOG.infof("SMS request: POST %s  phone=%s  message=[%d chars]",
+                baseUrl, phoneNumber, message.length());
+
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url + "?" + params))
-                .POST(HttpRequest.BodyPublishers.noBody())
+                .uri(URI.create(baseUrl))
+                .POST(HttpRequest.BodyPublishers.ofString(formBody))
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("Authorization", "Bearer " + smsConfig.traccar().apiToken())
+                .header("Authorization", "Bearer " + apiToken)
                 .timeout(Duration.ofSeconds(30))
                 .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            LOG.infof("SMS response for %s: status=%d, body='%s'", phoneNumber, response.statusCode(), response.body());
 
             if (response.statusCode() == 200) {
                 LOG.infof("SMS sent successfully to %s", phoneNumber);
                 return SmsSendResult.success(null);
             }
 
-            return SmsSendResult.failure("Unexpected response status: " + response.statusCode(), true);
+            String errorMsg = String.format("SMS gateway returned status %d: %s", response.statusCode(), response.body());
+            LOG.errorf("SMS FAILED for %s: %s", phoneNumber, errorMsg);
+            return SmsSendResult.failure(errorMsg, true);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

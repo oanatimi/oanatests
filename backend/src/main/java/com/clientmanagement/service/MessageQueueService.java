@@ -184,7 +184,7 @@ public class MessageQueueService {
                 message.updatedAt = LocalDateTime.now();
                 message.persist();
 
-                LOG.warnf("Message %s will be retried (attempt %d)", queueItem.messageId, newAttempts);
+                LOG.warnf("Message %s will be retried (attempt %d): %s", queueItem.messageId, newAttempts, result.error);
             } else {
                 // Non-retryable error
                 message.status = MessageStatus.FAILED;
