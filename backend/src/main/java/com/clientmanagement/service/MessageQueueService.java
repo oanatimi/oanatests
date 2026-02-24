@@ -3,6 +3,7 @@ package com.clientmanagement.service;
 import com.clientmanagement.config.QueueConfig;
 import com.clientmanagement.config.SmsConfig;
 import com.clientmanagement.dto.QueueStatusDto;
+import com.clientmanagement.entity.Client;
 import com.clientmanagement.entity.Message;
 import com.clientmanagement.entity.MessageQueue;
 import com.clientmanagement.entity.MessageStatus;
@@ -45,7 +46,7 @@ public class MessageQueueService {
         // Create message record
         Message message = new Message();
         message.id = UUID.randomUUID().toString();
-        message.clientId = clientId;
+        message.client = Client.findById(clientId);
         message.phoneNumber = phoneNumber;
         message.content = content;
         message.status = MessageStatus.QUEUED;
