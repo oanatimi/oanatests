@@ -10,13 +10,15 @@ import {
   Upload,
   FileText,
   Menu,
-  X
+  X,
+  Car
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/clients', label: 'Clients', icon: Users },
+  { href: '/vehicles', label: 'Vehicles', icon: Car },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/templates', label: 'Templates', icon: FileText },
   { href: '/import', label: 'Import Data', icon: Upload },
